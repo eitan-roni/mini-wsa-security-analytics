@@ -8,15 +8,18 @@ import jakarta.validation.constraints.NotNull;
 public record RuleRequest(
 
         @NotBlank
-        String ruleId,
+        String id,
 
-        @NotNull
-        RuleCategory category,
+        @NotBlank
+        String name,
+
+        @NotBlank
+        String message,
 
         @NotNull
         Severity severity,
 
-        @NotBlank
-        String description
+        @NotNull
+        RuleCategory category
 ) {
 }

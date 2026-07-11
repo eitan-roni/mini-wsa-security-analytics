@@ -74,8 +74,74 @@ The endpoint should return a response containing:
 docker compose down
 ```
 
+## Event Ingestion
+
+### `POST /v1/events/ingest`
+
+Accepts either a single JSON security-event object or a JSON array of events — both are normalized internally to the same list and processed identically. Batch validation is **all-or-nothing**: if any event in the request fails validation, the entire request is rejected with `400 Bad Request` and no events are processed. On success, the server assigns a UTC `receivedAt` timestamp to every accepted event and returns `201 Created`.
+
+Persistence, enrichment, threat scoring, and analytics APIs are not implemented yet — this milestone covers HTTP ingestion and validation only.
+
+#### Successful request
+
+```powershell
+curl -X POST http://localhost:8080/v1/events/ingest `
+  -H "Content-Type: application/json" `
+  -d '{
+    "eventId": "evt-001",
+    "timestamp": "2026-07-11T10:15:30Z",
+    "configId": "config-1",
+    "policyId": "policy-1",
+    "clientIp": "203.0.113.10",
+    "hostname": "example.com",
+    "path": "/login",
+    "method": "POST",
+    "statusCode": 403,
+    "userAgent": "Mozilla/5.0",
+    "rule": { "ruleId": "rule-1", "category": "XSS", "severity": "HIGH", "description": "Reflected XSS attempt" },
+    "action": "DENY",
+    "geoLocation": { "country": "US", "city": "San Francisco" },
+    "requestSize": 512,
+    "responseSize": 0
+  }'
+```
+
+`201 Created`:
+
+```json
+{
+  "acceptedCount": 1,
+  "events": [
+    { "eventId": "evt-001", "receivedAt": "2026-07-11T10:16:00Z" }
+  ]
+}
+```
+
+#### Invalid request
+
+```powershell
+curl -X POST http://localhost:8080/v1/events/ingest `
+  -H "Content-Type: application/json" `
+  -d '{ "eventId": "evt-002" }'
+```
+
+`400 Bad Request`:
+
+```json
+{
+  "status": 400,
+  "error": "VALIDATION_FAILED",
+  "path": "/v1/events/ingest",
+  "violations": [
+    { "field": "events[0].timestamp", "message": "must not be null" },
+    { "field": "events[0].configId", "message": "must not be blank" }
+  ]
+}
+```
+
 ## Implementation Assumptions
 
 * In the incoming security-event schema, `city` (on `GeoLocationRequest`) and `userAgent` (on `SecurityEventRequest`) are optional; every other field is required.
-* Batch ingestion (once implemented) will use all-or-nothing validation: if any event in a batch fails validation, the whole batch is rejected.
+* Batch ingestion uses all-or-nothing validation: if any event in a batch fails validation, the whole batch is rejected and the ingestion service is never invoked.
 * Timestamps are represented as ISO-8601 strings on the wire and parsed into `java.time.Instant`.
+* A single JSON object and a JSON array are both accepted by `POST /v1/events/ingest` and are normalized to the same internal list, so single-event requests report validation errors as `events[0].*`.

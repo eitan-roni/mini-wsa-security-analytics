@@ -33,7 +33,7 @@ class SecurityEventRequestValidationTest {
     }
 
     private RuleRequest validRule() {
-        return new RuleRequest("rule-1", RuleCategory.XSS, Severity.HIGH, "Reflected XSS attempt");
+        return new RuleRequest("950001", "SQL_INJECTION", "SQL Injection Attack Detected", Severity.CRITICAL, RuleCategory.INJECTION);
     }
 
     private GeoLocationRequest validGeoLocation(String city) {
@@ -44,7 +44,7 @@ class SecurityEventRequestValidationTest {
         return new SecurityEventRequest(
                 "event-1",
                 Instant.parse("2026-07-11T10:15:30Z"),
-                "config-1",
+                14227L,
                 "policy-1",
                 "203.0.113.10",
                 "example.com",
@@ -72,7 +72,7 @@ class SecurityEventRequestValidationTest {
         SecurityEventRequest event = new SecurityEventRequest(
                 "",
                 Instant.parse("2026-07-11T10:15:30Z"),
-                "config-1",
+                14227L,
                 "policy-1",
                 "203.0.113.10",
                 "example.com",
@@ -95,11 +95,11 @@ class SecurityEventRequestValidationTest {
 
     @Test
     void invalidNestedRuleCausesViolation() {
-        RuleRequest invalidRule = new RuleRequest("", null, Severity.HIGH, "Reflected XSS attempt");
+        RuleRequest invalidRule = new RuleRequest("", "SQL_INJECTION", "SQL Injection Attack Detected", Severity.CRITICAL, null);
         SecurityEventRequest event = new SecurityEventRequest(
                 "event-1",
                 Instant.parse("2026-07-11T10:15:30Z"),
-                "config-1",
+                14227L,
                 "policy-1",
                 "203.0.113.10",
                 "example.com",
@@ -117,7 +117,7 @@ class SecurityEventRequestValidationTest {
         Set<ConstraintViolation<SecurityEventRequest>> violations = validator.validate(event);
 
         assertThat(violations)
-                .anyMatch(violation -> violation.getPropertyPath().toString().equals("rule.ruleId"));
+                .anyMatch(violation -> violation.getPropertyPath().toString().equals("rule.id"));
         assertThat(violations)
                 .anyMatch(violation -> violation.getPropertyPath().toString().equals("rule.category"));
     }
@@ -127,7 +127,7 @@ class SecurityEventRequestValidationTest {
         SecurityEventRequest event = new SecurityEventRequest(
                 "event-1",
                 Instant.parse("2026-07-11T10:15:30Z"),
-                "config-1",
+                14227L,
                 "policy-1",
                 "203.0.113.10",
                 "example.com",
@@ -153,7 +153,7 @@ class SecurityEventRequestValidationTest {
         SecurityEventRequest event = new SecurityEventRequest(
                 "event-1",
                 Instant.parse("2026-07-11T10:15:30Z"),
-                "config-1",
+                14227L,
                 "policy-1",
                 "203.0.113.10",
                 "example.com",
