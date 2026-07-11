@@ -1,0 +1,20 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: mini-wsa-postgres
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-mini_wsa}
+      POSTGRES_USER: ${POSTGRES_USER:-mini_wsa}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-mini_wsa_dev}
+    ports:
+      - "5432:5432"
+    volumes:
+      - mini-wsa-postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-mini_wsa} -d ${POSTGRES_DB:-mini_wsa}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  mini-wsa-postgres-data:
