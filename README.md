@@ -73,3 +73,9 @@ The endpoint should return a response containing:
 ```powershell
 docker compose down
 ```
+
+## Implementation Assumptions
+
+* In the incoming security-event schema, `city` (on `GeoLocationRequest`) and `userAgent` (on `SecurityEventRequest`) are optional; every other field is required.
+* Batch ingestion (once implemented) will use all-or-nothing validation: if any event in a batch fails validation, the whole batch is rejected.
+* Timestamps are represented as ISO-8601 strings on the wire and parsed into `java.time.Instant`.
