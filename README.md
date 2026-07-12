@@ -25,7 +25,7 @@ The service will ingest security events, validate and enrich them, persist them,
 
 ## Project Status
 
-Initial project setup, including a local PostgreSQL development environment managed through Docker Compose.
+Milestone `v0.1-ingestion` is complete: events are validated, persisted to PostgreSQL via Flyway-managed schema, and returned in the ingestion response. Classification, threat scoring, and repeat-offender logic are not implemented yet and are planned for milestone `v0.2-enrichment` via a later Flyway migration.
 
 ## Local Development Environment
 
@@ -78,9 +78,11 @@ docker compose down
 
 ### `POST /v1/events/ingest`
 
-Accepts either a single JSON security-event object or a JSON array of events — both are normalized internally to the same list and processed identically. Batch validation is **all-or-nothing**: if any event in the request fails validation, the entire request is rejected with `400 Bad Request` and no events are processed. On success, the server assigns a UTC `receivedAt` timestamp to every accepted event and returns `201 Created`.
+Accepts either a single JSON security-event object or a JSON array of events — both are normalized internally to the same list and processed identically. Batch validation is **all-or-nothing**: if any event in the request fails validation, the entire request is rejected with `400 Bad Request` and no events are processed. On success, the server assigns a UTC `receivedAt` timestamp to every accepted event, persists the batch to PostgreSQL, and returns `201 Created`.
 
-Persistence, enrichment, threat scoring, and analytics APIs are not implemented yet — this milestone covers HTTP ingestion and validation only.
+Batch persistence is also **all-or-nothing**: if any event in an already-validated batch fails to persist (for example, a duplicate `eventId`), the entire batch is rolled back and no events are stored.
+
+Enrichment, threat scoring, and analytics APIs are not implemented yet — see [Planned Milestones](#planned-milestones).
 
 #### Successful request
 
@@ -90,7 +92,7 @@ curl -X POST http://localhost:8080/v1/events/ingest `
   -d '{
     "eventId": "evt-001",
     "timestamp": "2026-07-11T10:15:30Z",
-    "configId": "config-1",
+    "configId": 14227,
     "policyId": "policy-1",
     "clientIp": "203.0.113.10",
     "hostname": "example.com",
@@ -98,7 +100,7 @@ curl -X POST http://localhost:8080/v1/events/ingest `
     "method": "POST",
     "statusCode": 403,
     "userAgent": "Mozilla/5.0",
-    "rule": { "ruleId": "rule-1", "category": "XSS", "severity": "HIGH", "description": "Reflected XSS attempt" },
+    "rule": { "id": "950001", "name": "SQL_INJECTION", "message": "SQL Injection Attack Detected", "severity": "CRITICAL", "category": "INJECTION" },
     "action": "DENY",
     "geoLocation": { "country": "US", "city": "San Francisco" },
     "requestSize": 512,
@@ -134,10 +136,37 @@ curl -X POST http://localhost:8080/v1/events/ingest `
   "path": "/v1/events/ingest",
   "violations": [
     { "field": "events[0].timestamp", "message": "must not be null" },
-    { "field": "events[0].configId", "message": "must not be blank" }
+    { "field": "events[0].configId", "message": "must not be null" }
   ]
 }
 ```
+
+#### Duplicate event
+
+```powershell
+curl -X POST http://localhost:8080/v1/events/ingest `
+  -H "Content-Type: application/json" `
+  -d '{ "eventId": "evt-001", ... }'
+```
+
+`409 Conflict` (when `eventId` already exists):
+
+```json
+{
+  "status": 409,
+  "error": "DUPLICATE_EVENT",
+  "path": "/v1/events/ingest",
+  "violations": [
+    { "field": "eventId", "message": "One or more submitted event IDs already exist" }
+  ]
+}
+```
+
+## Persistence
+
+* PostgreSQL is now used to persist accepted security events; start it with `docker compose up -d` before running the application (see [Start PostgreSQL](#start-postgresql)).
+* Flyway manages the schema (`src/main/resources/db/migration`); Hibernate runs with `ddl-auto: validate` and never generates DDL itself.
+* Accepted events are flattened into a single `security_events` table — nested `rule` and `geoLocation` fields become columns, not related tables.
 
 ## Implementation Assumptions
 
@@ -145,3 +174,11 @@ curl -X POST http://localhost:8080/v1/events/ingest `
 * Batch ingestion uses all-or-nothing validation: if any event in a batch fails validation, the whole batch is rejected and the ingestion service is never invoked.
 * Timestamps are represented as ISO-8601 strings on the wire and parsed into `java.time.Instant`.
 * A single JSON object and a JSON array are both accepted by `POST /v1/events/ingest` and are normalized to the same internal list, so single-event requests report validation errors as `events[0].*`.
+
+### Provisional persistence assumptions (pending assignment clarification)
+
+* `eventId` is assumed unique and is enforced with a database unique constraint.
+* A duplicate `eventId` currently returns `409 Conflict` with error code `DUPLICATE_EVENT`. This may change to idempotent (no-op success) behavior once the assignment clarification is available.
+* Batch persistence is atomic and all-or-nothing: a failure while saving any single event in a batch rolls back the entire batch, and no partial batches are ever stored.
+* Repeat-offender detection and event-time semantics (e.g. handling of out-of-order or backdated `timestamp` values) are explicitly out of scope for `v0.1-ingestion` and are not yet implemented.
+* These are documented, easily reversible assumptions, not final design decisions.
