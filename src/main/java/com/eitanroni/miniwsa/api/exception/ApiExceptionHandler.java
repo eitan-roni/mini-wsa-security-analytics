@@ -7,6 +7,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.validation.FieldError;
 import org.springframework.web.bind.MethodArgumentNotValidException;
+import org.springframework.web.bind.MissingServletRequestParameterException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 
@@ -29,6 +30,18 @@ public class ApiExceptionHandler {
         ValidationViolation violation = new ValidationViolation("body", "Request body is malformed or contains an invalid value");
 
         return buildResponse(HttpStatus.BAD_REQUEST, "MALFORMED_REQUEST_BODY", request, List.of(violation));
+    }
+
+    @ExceptionHandler(InvalidStatsQueryException.class)
+    public ResponseEntity<ApiError> handleInvalidStatsQuery(InvalidStatsQueryException ex, HttpServletRequest request) {
+        return buildResponse(HttpStatus.BAD_REQUEST, "VALIDATION_FAILED", request, ex.violations());
+    }
+
+    @ExceptionHandler(MissingServletRequestParameterException.class)
+    public ResponseEntity<ApiError> handleMissingParameter(MissingServletRequestParameterException ex, HttpServletRequest request) {
+        ValidationViolation violation = new ValidationViolation(ex.getParameterName(), "must not be null");
+
+        return buildResponse(HttpStatus.BAD_REQUEST, "VALIDATION_FAILED", request, List.of(violation));
     }
 
     @ExceptionHandler(DuplicateEventException.class)
