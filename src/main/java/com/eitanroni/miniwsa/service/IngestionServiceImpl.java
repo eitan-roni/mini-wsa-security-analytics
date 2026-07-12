@@ -6,6 +6,8 @@ import com.eitanroni.miniwsa.api.dto.SecurityEventRequest;
 import com.eitanroni.miniwsa.persistence.entity.SecurityEventEntity;
 import com.eitanroni.miniwsa.persistence.mapper.SecurityEventEntityMapper;
 import com.eitanroni.miniwsa.persistence.repository.SecurityEventRepository;
+import com.eitanroni.miniwsa.service.enrichment.EnrichedSecurityEvent;
+import com.eitanroni.miniwsa.service.enrichment.EventEnrichmentService;
 import org.hibernate.exception.ConstraintViolationException;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
@@ -23,11 +25,16 @@ public class IngestionServiceImpl implements IngestionService {
     private final Clock clock;
     private final SecurityEventRepository repository;
     private final SecurityEventEntityMapper mapper;
+    private final EventEnrichmentService enrichmentService;
 
-    public IngestionServiceImpl(Clock clock, SecurityEventRepository repository, SecurityEventEntityMapper mapper) {
+    public IngestionServiceImpl(Clock clock,
+                                 SecurityEventRepository repository,
+                                 SecurityEventEntityMapper mapper,
+                                 EventEnrichmentService enrichmentService) {
         this.clock = clock;
         this.repository = repository;
         this.mapper = mapper;
+        this.enrichmentService = enrichmentService;
     }
 
     @Override
@@ -35,8 +42,10 @@ public class IngestionServiceImpl implements IngestionService {
     public EventIngestionResponse ingest(List<SecurityEventRequest> events) {
         Instant receivedAt = Instant.now(clock);
 
-        List<SecurityEventEntity> entities = events.stream()
-                .map(event -> mapper.toEntity(event, receivedAt))
+        List<EnrichedSecurityEvent> enrichedEvents = enrichmentService.enrich(events, receivedAt);
+
+        List<SecurityEventEntity> entities = enrichedEvents.stream()
+                .map(mapper::toEntity)
                 .toList();
 
         try {

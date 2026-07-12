@@ -89,6 +89,12 @@ public class SecurityEventEntity {
     @Column(name = "response_size", nullable = false)
     private Long responseSize;
 
+    @Column(name = "attack_type", length = 64, nullable = false)
+    private String attackType;
+
+    @Column(name = "threat_score", nullable = false)
+    private Integer threatScore;
+
     protected SecurityEventEntity() {
         // required by JPA
     }
@@ -113,7 +119,9 @@ public class SecurityEventEntity {
                                 String country,
                                 String city,
                                 Long requestSize,
-                                Long responseSize) {
+                                Long responseSize,
+                                String attackType,
+                                Integer threatScore) {
         this.eventId = eventId;
         this.eventTimestamp = eventTimestamp;
         this.receivedAt = receivedAt;
@@ -135,6 +143,8 @@ public class SecurityEventEntity {
         this.city = city;
         this.requestSize = requestSize;
         this.responseSize = responseSize;
+        this.attackType = attackType;
+        this.threatScore = threatScore;
     }
 
     public Long getId() {
@@ -223,5 +233,13 @@ public class SecurityEventEntity {
 
     public Long getResponseSize() {
         return responseSize;
+    }
+
+    public String getAttackType() {
+        return attackType;
+    }
+
+    public Integer getThreatScore() {
+        return threatScore;
     }
 }
