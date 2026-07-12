@@ -2,9 +2,9 @@
 
 Mini WSA is a simplified security analytics backend inspired by large-scale Web Security Analytics systems.
 
-The service will ingest security events, validate and enrich them, persist them, and expose analytical REST APIs for statistics and event samples.
+The service ingests security events, validates and enriches them, persists them in PostgreSQL, and exposes analytical REST APIs for statistics and event samples.
 
-## Planned Technology Stack
+## Technology Stack
 
 * Java 21
 * Spring Boot
@@ -15,7 +15,7 @@ The service will ingest security events, validate and enrich them, persist them,
 * JUnit 5
 * Testcontainers
 
-## Planned Milestones
+## Completed Milestones
 
 * `v0.1-ingestion` – event ingestion and validation
 * `v0.2-enrichment` – classification and threat-score calculation
@@ -35,32 +35,154 @@ Milestone `v0.4-samples` is complete: `GET /v1/events/samples` returns paginated
 
 Milestone `v0.5-generator` is complete: a standalone command-line data generator produces realistic, wave-containing synthetic event datasets ready for `POST /v1/events/ingest`, with optional direct submission (see [Data Generator](#data-generator)).
 
-## Local Development Environment
+## Architecture Overview
+
+Mini WSA follows a layered Spring Boot architecture:
+
+```mermaid
+flowchart LR
+    Client[Client / Postman / Generator]
+    Ingestion[Ingestion Controller]
+    Validation[Schema Validation]
+    Enrichment[Classification and Threat Scoring]
+    Persistence[JPA Repository]
+    PostgreSQL[(PostgreSQL)]
+
+    Stats[Statistics API]
+    Samples[Samples API]
+
+    Client -->|POST /v1/events/ingest| Ingestion
+    Ingestion --> Validation
+    Validation --> Enrichment
+    Enrichment --> Persistence
+    Persistence --> PostgreSQL
+
+    Client -->|GET /v1/stats/summary| Stats
+    Stats --> Persistence
+
+    Client -->|GET /v1/events/samples| Samples
+    Samples --> Persistence
+```
+
+The main request flows are:
+
+1. **Ingestion**
+
+    * The controller accepts a single event or a batch.
+    * Jakarta Bean Validation validates the request.
+    * The service assigns `receivedAt`.
+    * Classification and threat-score services enrich each event.
+    * The complete batch is persisted in one transaction.
+
+2. **Statistics**
+
+    * PostgreSQL performs counts, averages, grouping, ordering, and top-10 limiting.
+    * Matching entities are not loaded into memory for Java-side aggregation.
+    * Time filtering uses `receivedAt`.
+
+3. **Samples**
+
+    * Optional filters are translated into JPA Specifications.
+    * PostgreSQL performs filtering, sorting, counting, limit, and absolute offset.
+    * Time filtering and sorting use the original event `timestamp`.
+
+4. **Data Generator**
+
+    * Runs as a standalone Java command-line application.
+    * It does not start Spring Boot or require PostgreSQL for file generation.
+    * Generated files can be submitted to the ingestion API directly or through built-in HTTP batching.
+
+## Storage Choice
+
+PostgreSQL was selected because it provides:
+
+* ACID transactions for atomic batch ingestion
+* a unique constraint for race-safe `eventId` enforcement
+* efficient filtering and aggregation using SQL
+* B-tree indexes for the statistics, samples, and repeat-offender access patterns
+* mature Spring Data JPA and Testcontainers integration
+* Flyway support for deterministic schema migrations
+
+This is a practical choice for the assignment because the same storage engine supports both transactional ingestion and analytical queries without requiring additional infrastructure.
+
+The main trade-off is that a single PostgreSQL database would not be the final architecture for a production system processing millions of events continuously. At significantly higher scale, the system would likely separate ingestion, stream processing, operational storage, and analytical storage.
+
+## Build and Run
 
 ### Prerequisites
 
 * Java 21
-* Docker Desktop
+* Docker Desktop, or another running Docker environment
 
-### Start PostgreSQL
+The project includes the Maven Wrapper, so a separate Maven installation is not required. Docker Compose starts PostgreSQL; the Spring Boot application is started separately through Maven.
+
+### Windows PowerShell
+
+Build the project:
+
+```powershell
+.\mvnw.cmd clean package
+```
+
+Run all tests:
+
+```powershell
+.\mvnw.cmd clean test
+```
+
+Start PostgreSQL and verify that it is healthy:
 
 ```powershell
 docker compose up -d
-```
-
-Check that the PostgreSQL container is running and healthy:
-
-```powershell
 docker compose ps
 ```
 
-### Run the Application on Windows
+Run the application:
 
 ```powershell
 .\mvnw.cmd spring-boot:run
 ```
 
-### Check Application Health
+Stop PostgreSQL:
+
+```powershell
+docker compose down
+```
+
+### Unix-like systems
+
+Build the project:
+
+```bash
+./mvnw clean package
+```
+
+Run all tests:
+
+```bash
+./mvnw clean test
+```
+
+Start PostgreSQL and verify that it is healthy:
+
+```bash
+docker compose up -d
+docker compose ps
+```
+
+Run the application:
+
+```bash
+./mvnw spring-boot:run
+```
+
+Stop PostgreSQL:
+
+```bash
+docker compose down
+```
+
+### Health check
 
 Open:
 
@@ -68,18 +190,12 @@ Open:
 http://localhost:8080/actuator/health
 ```
 
-The endpoint should return a response containing:
+Expected response:
 
 ```json
 {
   "status": "UP"
 }
-```
-
-### Stop the Local Environment
-
-```powershell
-docker compose down
 ```
 
 ## Event Ingestion
@@ -95,7 +211,7 @@ Every accepted event is enriched with an attack classification and a threat scor
 #### Successful request
 
 ```powershell
-curl -X POST http://localhost:8080/v1/events/ingest `
+curl.exe -X POST "http://localhost:8080/v1/events/ingest" `
   -H "Content-Type: application/json" `
   -d '{
     "eventId": "evt-001",
@@ -130,7 +246,7 @@ curl -X POST http://localhost:8080/v1/events/ingest `
 #### Invalid request
 
 ```powershell
-curl -X POST http://localhost:8080/v1/events/ingest `
+curl.exe -X POST "http://localhost:8080/v1/events/ingest" `
   -H "Content-Type: application/json" `
   -d '{ "eventId": "evt-002" }'
 ```
@@ -152,7 +268,7 @@ curl -X POST http://localhost:8080/v1/events/ingest `
 #### Duplicate event
 
 ```powershell
-curl -X POST http://localhost:8080/v1/events/ingest `
+curl.exe -X POST "http://localhost:8080/v1/events/ingest" `
   -H "Content-Type: application/json" `
   -d '{ "eventId": "evt-001", ... }'
 ```
@@ -172,7 +288,7 @@ curl -X POST http://localhost:8080/v1/events/ingest `
 
 ## Persistence
 
-* PostgreSQL is now used to persist accepted security events; start it with `docker compose up -d` before running the application (see [Start PostgreSQL](#start-postgresql)).
+* PostgreSQL is used to persist accepted security events; start it with `docker compose up -d` before running the application (see [Start PostgreSQL](#start-postgresql)).
 * Flyway manages the schema (`src/main/resources/db/migration`); Hibernate runs with `ddl-auto: validate` and never generates DDL itself.
 * Accepted events are flattened into a single `security_events` table — nested `rule` and `geoLocation` fields become columns, not related tables.
 
@@ -233,7 +349,7 @@ The range is half-open, `[from, to)`: an event whose `receivedAt` equals `from` 
 #### Successful request
 
 ```powershell
-curl "http://localhost:8080/v1/stats/summary?configId=14227&from=2026-07-01T00:00:00Z&to=2026-07-02T00:00:00Z"
+curl.exe "http://localhost:8080/v1/stats/summary?configId=14227&from=2026-07-01T00:00:00Z&to=2026-07-02T00:00:00Z"
 ```
 
 `200 OK`:
@@ -291,7 +407,7 @@ Results are sorted by event `timestamp` descending; ties are broken deterministi
 #### Successful request
 
 ```powershell
-curl "http://localhost:8080/v1/events/samples?configId=14227&category=INJECTION&action=DENY&limit=20&offset=0"
+curl.exe "http://localhost:8080/v1/events/samples?configId=14227&category=INJECTION&action=DENY&limit=20&offset=0"
 ```
 
 `200 OK`:
@@ -395,7 +511,7 @@ Output: generated-security-events.json
 Seed: 42
 ```
 
-**Deterministic seed** (rerunning with the same `--seed` and `--id-prefix` reproduces an identical dataset, field-for-field):
+**Deterministic seed**: the seed controls pseudo-random choices and the default generated ID prefix. Generator tests use a fixed `Clock` to verify fully deterministic output. The CLI uses the current time as the reference point for recent timestamps, so separate CLI runs with the same seed reproduce the same random structure and event IDs, but timestamp values may differ when the runs start at different times.
 
 ```powershell
 .\mvnw.cmd -q -DskipTests compile exec:java -Pgenerator "-Dexec.args=--count 500 --seed 42 --id-prefix demo-run"
@@ -414,14 +530,14 @@ Submitted batch 40/40: 250 events
 Submitted 10000 events successfully
 ```
 
-A batch that receives a non-2xx response stops submission immediately (no retries) and reports the failed batch number, HTTP status, and response body; the process exits with a non-zero status. The output file has already been written by that point, so a failed submission can be retried later against the same file.
+A batch that receives a non-2xx response stops submission immediately (no retries) and reports the failed batch number, HTTP status, and response body; the process exits with a non-zero status. The output file remains available, but batches accepted before the failure may already be persisted. Resubmitting the entire file from the beginning can therefore return `409 Conflict` for previously accepted IDs. Recovery options include cleaning the test database, submitting only the remaining batches, or generating a new dataset with a different `--seed` or `--id-prefix`.
 
 ### Ingesting the generated file directly
 
 The output file's top-level JSON array is exactly the request body `POST /v1/events/ingest` expects:
 
 ```bash
-curl -X POST \
+curl.exe -X POST \
   http://localhost:8080/v1/events/ingest \
   -H "Content-Type: application/json" \
   --data-binary @generated-security-events.json
@@ -442,7 +558,53 @@ curl.exe -X POST `
 
 * The full dataset is held in memory as a `List` of request DTOs before being written; this is fine at the 10,000-event scale this milestone targets, but is not designed to scale to unbounded sizes.
 * `--api-url` submission sends events in configurable batches (default `250`), never all at once, to keep individual request sizes and server-side transaction sizes reasonable.
-* There is no automatic retry on a failed batch — a transient failure requires rerunning the submission (against the same already-written output file) rather than silently retrying and risking duplicate submissions.
+* There is no automatic retry on a failed batch. Previously accepted batches may already be committed, so recovery must avoid resubmitting their event IDs.
+
+## Testing Strategy
+
+The test suite covers the system at several levels:
+
+* **Unit tests**
+
+    * attack classification
+    * threat-score calculation
+    * repeat-offender behavior
+    * DTO and entity mapping
+    * generator configuration and deterministic behavior
+
+* **Controller tests**
+
+    * successful requests
+    * malformed JSON
+    * validation failures
+    * invalid query parameters
+    * structured error responses
+
+* **Service tests**
+
+    * orchestration and response construction
+    * batch behavior
+    * statistics and samples mapping
+
+* **PostgreSQL integration tests**
+
+    * persistence and transaction rollback
+    * duplicate-event handling
+    * Flyway upgrades with existing data
+    * statistics aggregations
+    * dynamic samples filtering
+    * sorting, total counts, limits, and arbitrary offsets
+
+* **Generator tests**
+
+    * exact event count
+    * unique IDs
+    * schema validity
+    * attack-wave generation
+    * JSON serialization
+    * HTTP batch submission and failure behavior
+
+At project completion, the full suite contained 167 passing tests with no failures, errors, or skipped tests.
 
 ## Implementation Assumptions
 
@@ -457,3 +619,43 @@ curl.exe -X POST `
 * A duplicate `eventId` currently returns `409 Conflict` with error code `DUPLICATE_EVENT`. This may change to idempotent (no-op success) behavior once the assignment clarification is available.
 * Batch persistence is atomic and all-or-nothing: a failure while saving any single event in a batch rolls back the entire batch, and no partial batches are ever stored.
 * These are documented, easily reversible assumptions, not final design decisions.
+
+## Challenging Parts
+
+### Repeat-offender semantics
+
+The assignment does not fully define whether the current event counts toward the threshold or whether the ten-minute window uses the original event timestamp or `receivedAt`.
+
+I handled this by selecting explicit, documented semantics, covering them with tests, and keeping the implementation isolated so the behavior can be changed without rewriting the ingestion flow.
+
+### Atomic batch persistence and duplicates
+
+A preliminary existence check would not be race-safe. The database unique constraint is therefore authoritative. Persistence is executed in one transaction, and the database constraint name is inspected to distinguish duplicate events from unrelated integrity failures.
+
+### Dynamic optional filters
+
+A static JPQL query using repeated `:parameter IS NULL OR ...` expressions was fragile with some PostgreSQL/Hibernate parameter types. The Samples API instead uses JPA Specifications so that predicates are created only for parameters that are actually supplied.
+
+### Arbitrary offset pagination
+
+Spring's normal page-number abstraction does not correctly represent every absolute offset. A custom `OffsetBasedPageable` preserves the requested offset directly, allowing requests such as `limit=3&offset=2` to skip exactly two matching rows.
+
+### Flyway migration compatibility
+
+The enrichment migration had to support databases that already contained V1 rows. The migration first introduced nullable columns, backfilled existing records, added constraints, and only then applied `NOT NULL`. A dedicated PostgreSQL integration test verifies the V1-to-V2 upgrade path.
+
+## What I Would Improve with More Time
+
+For a production-scale implementation, I would consider:
+
+* introducing Kafka or another durable message broker between producers and processing
+* moving repeat-offender detection to keyed streaming state using Flink, Kafka Streams, or a Redis-based time-window structure
+* partitioning the events table by time and defining a retention policy
+* using a dedicated analytical datastore for long-range and high-cardinality queries
+* implementing idempotent ingestion instead of returning a conflict for every duplicate
+* introducing a dead-letter queue for invalid or repeatedly failing events
+* adding observability with metrics, tracing, dashboards, and structured logs
+* adding authentication, authorization, and API rate limiting
+* supporting resumable generator submission after a partially successful batch run
+* adding the optional time-series statistics endpoint
+* running the application itself through Docker Compose in addition to PostgreSQL
