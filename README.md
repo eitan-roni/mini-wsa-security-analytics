@@ -29,6 +29,8 @@ Milestone `v0.1-ingestion` is complete: events are validated, persisted to Postg
 
 Milestone `v0.2-enrichment` is complete: every accepted event is classified by attack type and assigned a threat score before being persisted; both are stored alongside the original event via the `V2__add_security_event_enrichment` migration (see [Enrichment](#enrichment)).
 
+Milestone `v0.3-stats` is complete: `GET /v1/stats/summary` returns aggregate statistics — total events, per-category and per-action breakdowns, and top attackers/targeted paths — over a `receivedAt`-filtered time range (see [Statistics](#statistics)).
+
 ## Local Development Environment
 
 ### Prerequisites
@@ -84,7 +86,7 @@ Accepts either a single JSON security-event object or a JSON array of events —
 
 Batch persistence is also **all-or-nothing**: if any event in an already-validated batch fails to persist (for example, a duplicate `eventId`), the entire batch is rolled back and no events are stored.
 
-Every accepted event is enriched with an attack classification and a threat score before it is persisted — see [Enrichment](#enrichment). Analytics APIs are not implemented yet — see [Planned Milestones](#planned-milestones).
+Every accepted event is enriched with an attack classification and a threat score before it is persisted — see [Enrichment](#enrichment). Aggregate statistics over ingested events are available via `GET /v1/stats/summary` — see [Statistics](#statistics).
 
 #### Successful request
 
@@ -207,6 +209,60 @@ The result is capped at 100, though the current rule set can reach at most 90 (`
 * Late/out-of-order events never trigger recalculation of already-persisted rows — threat scores are computed once, at ingestion time, and never rewritten.
 * This is implemented as one `COUNT` query per event against the existing `(client_ip, event_timestamp)` index, which is acceptable at this assignment's scale but would not scale to high ingestion throughput; a production system would likely use keyed streaming state (e.g. Redis) instead.
 * These are documented, easily reversible assumptions, not final design decisions.
+
+## Statistics
+
+### `GET /v1/stats/summary`
+
+Returns aggregate statistics over ingested security events for a given time range.
+
+| Query parameter | Required | Description |
+|---|---|---|
+| `from`     | Yes | ISO-8601 timestamp — inclusive lower bound of the range |
+| `to`       | Yes | ISO-8601 timestamp — exclusive upper bound of the range |
+| `configId` | No  | Restrict aggregation to a single configuration; omit to aggregate across all configurations |
+
+The range is half-open, `[from, to)`: an event whose `receivedAt` equals `from` is included, an event whose `receivedAt` equals `to` is excluded. Filtering is always performed against the persisted `receivedAt` timestamp — the time the server accepted the event — not the original event `timestamp` field.
+
+`from >= to`, and a missing or malformed `from`/`to`, are rejected with `400 Bad Request` using the same structured error shape as [Event Ingestion](#event-ingestion).
+
+#### Successful request
+
+```powershell
+curl "http://localhost:8080/v1/stats/summary?configId=14227&from=2026-07-01T00:00:00Z&to=2026-07-02T00:00:00Z"
+```
+
+`200 OK`:
+
+```json
+{
+  "configId": 14227,
+  "timeRange": {
+    "from": "2026-07-01T00:00:00Z",
+    "to": "2026-07-02T00:00:00Z"
+  },
+  "totalEvents": 1523,
+  "byCategory": {
+    "INJECTION": { "count": 450, "avgThreatScore": 72.3 }
+  },
+  "byAction": {
+    "DENY": 890,
+    "ALERT": 433,
+    "MONITOR": 200
+  },
+  "topAttackers": [
+    { "clientIp": "203.0.113.42", "count": 87, "avgThreatScore": 81.2 }
+  ],
+  "topTargetedPaths": [
+    { "path": "/api/v1/login", "count": 234 }
+  ]
+}
+```
+
+* `byCategory` and `byAction` only contain entries for categories/actions with at least one matching event.
+* `topAttackers` and `topTargetedPaths` are each capped at the top 10 results, ordered by event count descending (ties broken by `clientIp`/`path` ascending, respectively).
+* When `configId` is omitted, the response's `configId` field is `null` and the aggregation spans every configuration.
+* When no events match the query, the endpoint still returns `200 OK`, with `totalEvents: 0`, empty `byCategory`/`byAction` objects, and empty `topAttackers`/`topTargetedPaths` arrays.
 
 ## Implementation Assumptions
 
