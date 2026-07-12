@@ -31,6 +31,8 @@ Milestone `v0.2-enrichment` is complete: every accepted event is classified by a
 
 Milestone `v0.3-stats` is complete: `GET /v1/stats/summary` returns aggregate statistics — total events, per-category and per-action breakdowns, and top attackers/targeted paths — over a `receivedAt`-filtered time range (see [Statistics](#statistics)).
 
+Milestone `v0.4-samples` is complete: `GET /v1/events/samples` returns paginated, filterable, enriched event records — filtered and sorted by the original event `timestamp` — with a database-computed total count (see [Samples](#samples)).
+
 ## Local Development Environment
 
 ### Prerequisites
@@ -86,7 +88,7 @@ Accepts either a single JSON security-event object or a JSON array of events —
 
 Batch persistence is also **all-or-nothing**: if any event in an already-validated batch fails to persist (for example, a duplicate `eventId`), the entire batch is rolled back and no events are stored.
 
-Every accepted event is enriched with an attack classification and a threat score before it is persisted — see [Enrichment](#enrichment). Aggregate statistics over ingested events are available via `GET /v1/stats/summary` — see [Statistics](#statistics).
+Every accepted event is enriched with an attack classification and a threat score before it is persisted — see [Enrichment](#enrichment). Aggregate statistics over ingested events are available via `GET /v1/stats/summary` — see [Statistics](#statistics). Individual enriched events can be searched and paginated via `GET /v1/events/samples` — see [Samples](#samples).
 
 #### Successful request
 
@@ -263,6 +265,72 @@ curl "http://localhost:8080/v1/stats/summary?configId=14227&from=2026-07-01T00:0
 * `topAttackers` and `topTargetedPaths` are each capped at the top 10 results, ordered by event count descending (ties broken by `clientIp`/`path` ascending, respectively).
 * When `configId` is omitted, the response's `configId` field is `null` and the aggregation spans every configuration.
 * When no events match the query, the endpoint still returns `200 OK`, with `totalEvents: 0`, empty `byCategory`/`byAction` objects, and empty `topAttackers`/`topTargetedPaths` arrays.
+
+## Samples
+
+### `GET /v1/events/samples`
+
+Returns individual enriched event records, filtered and paginated. All query parameters are optional.
+
+| Query parameter | Description |
+|---|---|
+| `configId` | Restrict results to a single configuration; omit to search across all configurations |
+| `from`     | ISO-8601 timestamp — inclusive lower bound, applied to the original event `timestamp` |
+| `to`       | ISO-8601 timestamp — exclusive upper bound, applied to the original event `timestamp` |
+| `category` | One of the `RuleCategory` enum values (e.g. `INJECTION`, `XSS`, `BOT`, ...) |
+| `action`   | One of the `Action` enum values (`DENY`, `ALERT`, `MONITOR`) |
+| `limit`    | Maximum number of results to return. Defaults to `20`; must be between `1` and `100` |
+| `offset`   | Absolute number of matching rows to skip before the returned page. Defaults to `0`; must not be negative |
+
+Filtering and sorting both use the original event `timestamp` field — the time the event occurred at the edge — not the server-assigned `receivedAt` timestamp used by [Statistics](#statistics). If both `from` and `to` are given, the range is half-open, `[from, to)`; if only one is given, only that bound is applied. `from >= to`, invalid `category`/`action` values, a malformed `from`/`to`, `limit` outside `[1, 100]`, and a negative `offset` are all rejected with `400 Bad Request`.
+
+Results are sorted by event `timestamp` descending; ties are broken deterministically by database ID descending (most-recently-inserted first). `offset` is an absolute row offset (not a page number), so `limit=3&offset=2` always skips exactly 2 matching rows regardless of `limit`.
+
+#### Successful request
+
+```powershell
+curl "http://localhost:8080/v1/events/samples?configId=14227&category=INJECTION&action=DENY&limit=20&offset=0"
+```
+
+`200 OK`:
+
+```json
+{
+  "totalCount": 1523,
+  "limit": 20,
+  "offset": 0,
+  "events": [
+    {
+      "eventId": "evt-001",
+      "timestamp": "2026-07-11T10:15:30Z",
+      "configId": 14227,
+      "policyId": "policy-1",
+      "clientIp": "203.0.113.10",
+      "hostname": "example.com",
+      "path": "/login",
+      "method": "POST",
+      "statusCode": 403,
+      "userAgent": "Mozilla/5.0",
+      "rule": {
+        "id": "950001",
+        "name": "SQL_INJECTION",
+        "message": "SQL Injection Attack Detected",
+        "severity": "CRITICAL",
+        "category": "INJECTION"
+      },
+      "action": "DENY",
+      "geoLocation": { "country": "US", "city": "San Francisco" },
+      "requestSize": 512,
+      "responseSize": 0,
+      "receivedAt": "2026-07-11T10:16:00Z",
+      "attackType": "SQL/Command Injection",
+      "threatScore": 75
+    }
+  ]
+}
+```
+
+`totalCount` reflects the number of matching rows before pagination; `events` holds at most `limit` results starting at `offset`. When no events match, the endpoint still returns `200 OK` with `totalCount: 0` and an empty `events` array.
 
 ## Implementation Assumptions
 

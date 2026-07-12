@@ -7,13 +7,15 @@ import com.eitanroni.miniwsa.persistence.repository.projection.ClientIpStatsProj
 import com.eitanroni.miniwsa.persistence.repository.projection.PathStatsProjection;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 import java.time.Instant;
 import java.util.List;
 
-public interface SecurityEventRepository extends JpaRepository<SecurityEventEntity, Long> {
+public interface SecurityEventRepository extends JpaRepository<SecurityEventEntity, Long>,
+        JpaSpecificationExecutor<SecurityEventEntity> {
 
     long countByClientIpAndEventTimestampBetween(String clientIp, Instant windowStart, Instant windowEnd);
 
