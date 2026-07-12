@@ -33,6 +33,8 @@ Milestone `v0.3-stats` is complete: `GET /v1/stats/summary` returns aggregate st
 
 Milestone `v0.4-samples` is complete: `GET /v1/events/samples` returns paginated, filterable, enriched event records — filtered and sorted by the original event `timestamp` — with a database-computed total count (see [Samples](#samples)).
 
+Milestone `v0.5-generator` is complete: a standalone command-line data generator produces realistic, wave-containing synthetic event datasets ready for `POST /v1/events/ingest`, with optional direct submission (see [Data Generator](#data-generator)).
+
 ## Local Development Environment
 
 ### Prerequisites
@@ -331,6 +333,116 @@ curl "http://localhost:8080/v1/events/samples?configId=14227&category=INJECTION&
 ```
 
 `totalCount` reflects the number of matching rows before pagination; `events` holds at most `limit` results starting at `offset`. When no events match, the endpoint still returns `200 OK` with `totalCount: 0` and an empty `events` array.
+
+## Data Generator
+
+A standalone command-line tool generates realistic, synthetic security events for load-testing and demoing the ingestion, enrichment, statistics, and samples APIs. It lives entirely inside this Maven project (`com.eitanroni.miniwsa.generator`) but is independent of the Spring Boot application: running it does **not** start the web server and does **not** require PostgreSQL, unless `--api-url` is supplied to submit the generated events to a running instance.
+
+### Generated fields
+
+Each generated event contains exactly the raw fields accepted by `POST /v1/events/ingest` — `eventId`, `timestamp`, `configId`, `policyId`, `clientIp`, `hostname`, `path`, `method`, `statusCode`, `userAgent`, `rule` (`id`, `name`, `message`, `severity`, `category`), `action`, `geoLocation` (`country`, `city`), `requestSize`, `responseSize`. It never generates `receivedAt`, `attackType`, `threatScore`, or a database ID — those are assigned by the application itself during ingestion and enrichment. Every `eventId` in a generated dataset is unique. Category, severity, action, status code, and path are kept loosely consistent (e.g. `RATE_LIMIT` events use status `429`; `DENY` actions favor `401`/`403`; `DATA_LEAKAGE` events have large response sizes).
+
+### Attack waves
+
+An approximate percentage of generated events (`--wave-percentage`, default `30`) belong to **attack waves**: bursts of `--wave-size` (default `10`, minimum `6`) events sharing the same `clientIp`, `path`, and rule category, with strictly non-decreasing timestamps clustered inside a randomly chosen window under 10 minutes. Waves make the generated dataset exercise repeat-offender enrichment, top attackers, top targeted paths, and category/action aggregation. The requested `--count` is always produced exactly, even when it isn't evenly divisible by `--wave-size` or is smaller than `--wave-size` — the leftover/undersized remainder is generated as ordinary background traffic instead of a wave.
+
+Event timestamps are drawn from the previous 24 hours. The final list is **shuffled** before being written (a real ingestion batch would not arrive in perfect timestamp order); sort by `timestamp` yourself if chronological order is needed.
+
+### Command-line options
+
+| Option | Default | Description |
+|---|---|---|
+| `--count` | `1000` | Total number of events to generate; must be greater than `0` |
+| `--output` | `generated-security-events.json` | Output JSON file path |
+| `--seed` | derived from the current time | Random seed for reproducible generation |
+| `--wave-percentage` | `30` | Approximate percentage of events belonging to attack waves, `0`-`100` |
+| `--wave-size` | `10` | Events per attack wave; must be at least `6` |
+| `--api-url` | none | Ingestion endpoint to submit to (e.g. `http://localhost:8080/v1/events/ingest`); omit to only write the file |
+| `--batch-size` | `250` | Events per HTTP batch when `--api-url` is set; must be greater than `0` |
+| `--id-prefix` | `gen-<resolved seed>` | Prefix for generated event IDs |
+| `--help` | — | Print usage and exit |
+
+Invalid arguments (out-of-range values, an unknown option, a missing option value) print an error and usage guidance to stderr, exit with a non-zero status, and never create a partial output file.
+
+### Running the generator
+
+The generator is wired into the build via `exec-maven-plugin`, but the plugin has no execution bound to any lifecycle phase, so it never runs during a normal `mvn compile`/`mvn test`/`spring-boot:run` — it only runs when `exec:java` is explicitly requested.
+
+**File only, default options (Windows PowerShell):**
+
+```powershell
+.\mvnw.cmd -q -DskipTests compile exec:java -Pgenerator "-Dexec.args=--count 1000"
+```
+
+**File only, default options (Unix-like shell):**
+
+```bash
+./mvnw -q -DskipTests compile exec:java -Pgenerator -Dexec.args="--count 1000"
+```
+
+The `-Pgenerator` profile presets `exec.mainClass` to `com.eitanroni.miniwsa.generator.SecurityEventGeneratorMain`; without it, pass `-Dexec.mainClass=com.eitanroni.miniwsa.generator.SecurityEventGeneratorMain` explicitly instead.
+
+**10,000-event dataset:**
+
+```powershell
+.\mvnw.cmd -q -DskipTests compile exec:java -Pgenerator "-Dexec.args=--count 10000 --seed 42 --output generated-security-events.json"
+```
+
+```text
+Generated 10000 events
+Attack-wave events: 3000
+Output: generated-security-events.json
+Seed: 42
+```
+
+**Deterministic seed** (rerunning with the same `--seed` and `--id-prefix` reproduces an identical dataset, field-for-field):
+
+```powershell
+.\mvnw.cmd -q -DskipTests compile exec:java -Pgenerator "-Dexec.args=--count 500 --seed 42 --id-prefix demo-run"
+```
+
+**Direct ingestion** (generates the file, then submits it in batches to a running application):
+
+```powershell
+.\mvnw.cmd -q -DskipTests compile exec:java -Pgenerator "-Dexec.args=--count 10000 --seed 42 --api-url http://localhost:8080/v1/events/ingest --batch-size 250"
+```
+
+```text
+Submitted batch 1/40: 250 events
+...
+Submitted batch 40/40: 250 events
+Submitted 10000 events successfully
+```
+
+A batch that receives a non-2xx response stops submission immediately (no retries) and reports the failed batch number, HTTP status, and response body; the process exits with a non-zero status. The output file has already been written by that point, so a failed submission can be retried later against the same file.
+
+### Ingesting the generated file directly
+
+The output file's top-level JSON array is exactly the request body `POST /v1/events/ingest` expects:
+
+```bash
+curl -X POST \
+  http://localhost:8080/v1/events/ingest \
+  -H "Content-Type: application/json" \
+  --data-binary @generated-security-events.json
+```
+
+On Windows PowerShell, use `curl.exe` (not the `curl` alias for `Invoke-WebRequest`):
+
+```powershell
+curl.exe -X POST `
+  http://localhost:8080/v1/events/ingest `
+  -H "Content-Type: application/json" `
+  --data-binary "@generated-security-events.json"
+```
+
+**Duplicate-event warning**: every generated `eventId` is unique *within* a single generated file, but `eventId` is enforced unique at the database level (see [Persistence](#persistence)). Re-ingesting the same generated file a second time — or generating a new file with the same `--seed` and `--id-prefix` after already ingesting the first run — will fail the whole batch with `409 Conflict` (`DUPLICATE_EVENT`), since batch persistence is all-or-nothing. Use a different `--seed` and/or `--id-prefix` for each run you intend to ingest.
+
+### Trade-offs
+
+* The full dataset is held in memory as a `List` of request DTOs before being written; this is fine at the 10,000-event scale this milestone targets, but is not designed to scale to unbounded sizes.
+* `--api-url` submission sends events in configurable batches (default `250`), never all at once, to keep individual request sizes and server-side transaction sizes reasonable.
+* There is no automatic retry on a failed batch — a transient failure requires rerunning the submission (against the same already-written output file) rather than silently retrying and risking duplicate submissions.
 
 ## Implementation Assumptions
 

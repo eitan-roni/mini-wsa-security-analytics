@@ -55,6 +55,8 @@ application-local.properties
 generated-events/
 generated-data/
 events-*.json
+generated-security-events.json
+generated-security-events-*.json
 
 ### Local database data ###
 postgres-data/
