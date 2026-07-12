@@ -10,6 +10,7 @@ import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.MissingServletRequestParameterException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 
 import java.util.List;
 
@@ -40,6 +41,18 @@ public class ApiExceptionHandler {
     @ExceptionHandler(MissingServletRequestParameterException.class)
     public ResponseEntity<ApiError> handleMissingParameter(MissingServletRequestParameterException ex, HttpServletRequest request) {
         ValidationViolation violation = new ValidationViolation(ex.getParameterName(), "must not be null");
+
+        return buildResponse(HttpStatus.BAD_REQUEST, "VALIDATION_FAILED", request, List.of(violation));
+    }
+
+    @ExceptionHandler(InvalidQueryParameterException.class)
+    public ResponseEntity<ApiError> handleInvalidQueryParameter(InvalidQueryParameterException ex, HttpServletRequest request) {
+        return buildResponse(HttpStatus.BAD_REQUEST, "VALIDATION_FAILED", request, ex.violations());
+    }
+
+    @ExceptionHandler(MethodArgumentTypeMismatchException.class)
+    public ResponseEntity<ApiError> handleTypeMismatch(MethodArgumentTypeMismatchException ex, HttpServletRequest request) {
+        ValidationViolation violation = new ValidationViolation(ex.getName(), "must be a valid value");
 
         return buildResponse(HttpStatus.BAD_REQUEST, "VALIDATION_FAILED", request, List.of(violation));
     }
