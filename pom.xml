@@ -103,7 +103,33 @@
                 <groupId>org.springframework.boot</groupId>
                 <artifactId>spring-boot-maven-plugin</artifactId>
             </plugin>
+
+            <!--
+                Not bound to any lifecycle phase, so it never runs during a normal
+                `mvn compile`/`mvn test`/`spring-boot:run`. It is only invoked when
+                the `exec:java` goal is requested explicitly, to run the standalone
+                data generator (see README "Data Generator").
+            -->
+            <plugin>
+                <groupId>org.codehaus.mojo</groupId>
+                <artifactId>exec-maven-plugin</artifactId>
+                <version>3.1.0</version>
+            </plugin>
         </plugins>
     </build>
+
+    <profiles>
+        <profile>
+            <!--
+                Presets exec.mainClass so the generator can be run with
+                "mvn -Pgenerator compile exec:java" plus -Dexec.args, instead of
+                also passing -Dexec.mainClass on every invocation.
+            -->
+            <id>generator</id>
+            <properties>
+                <exec.mainClass>com.eitanroni.miniwsa.generator.SecurityEventGeneratorMain</exec.mainClass>
+            </properties>
+        </profile>
+    </profiles>
 
 </project>
