@@ -2,18 +2,19 @@ package com.eitanroni.miniwsa.persistence.mapper;
 
 import com.eitanroni.miniwsa.api.dto.SecurityEventRequest;
 import com.eitanroni.miniwsa.persistence.entity.SecurityEventEntity;
+import com.eitanroni.miniwsa.service.enrichment.EnrichedSecurityEvent;
 import org.springframework.stereotype.Component;
-
-import java.time.Instant;
 
 @Component
 public class SecurityEventEntityMapper {
 
-    public SecurityEventEntity toEntity(SecurityEventRequest request, Instant receivedAt) {
+    public SecurityEventEntity toEntity(EnrichedSecurityEvent enrichedEvent) {
+        SecurityEventRequest request = enrichedEvent.original();
+
         return new SecurityEventEntity(
                 request.eventId(),
                 request.timestamp(),
-                receivedAt,
+                enrichedEvent.receivedAt(),
                 request.configId(),
                 request.policyId(),
                 request.clientIp(),
@@ -31,7 +32,9 @@ public class SecurityEventEntityMapper {
                 request.geoLocation().country(),
                 request.geoLocation().city(),
                 request.requestSize(),
-                request.responseSize()
+                request.responseSize(),
+                enrichedEvent.attackType(),
+                enrichedEvent.threatScore()
         );
     }
 }

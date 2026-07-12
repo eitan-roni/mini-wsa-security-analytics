@@ -48,6 +48,10 @@ class EventIngestionPostgresIntegrationTest {
     }
 
     private ObjectNode validEventNode(String eventId) {
+        return validEventNode(eventId, "203.0.113.10", "2026-07-11T10:15:30Z");
+    }
+
+    private ObjectNode validEventNode(String eventId, String clientIp, String timestamp) {
         ObjectNode rule = objectMapper.createObjectNode()
                 .put("id", "950001")
                 .put("name", "SQL_INJECTION")
@@ -61,10 +65,10 @@ class EventIngestionPostgresIntegrationTest {
 
         ObjectNode event = objectMapper.createObjectNode();
         event.put("eventId", eventId);
-        event.put("timestamp", "2026-07-11T10:15:30Z");
+        event.put("timestamp", timestamp);
         event.put("configId", 14227);
         event.put("policyId", "policy-1");
-        event.put("clientIp", "203.0.113.10");
+        event.put("clientIp", clientIp);
         event.put("hostname", "example.com");
         event.put("path", "/login");
         event.put("method", "POST");
@@ -149,5 +153,97 @@ class EventIngestionPostgresIntegrationTest {
         assertThat(repository.findAll())
                 .extracting(SecurityEventEntity::getEventId)
                 .containsExactly("evt-existing");
+    }
+
+    @Test
+    void attackTypeAndThreatScoreColumnsArePersistedWithExpectedValues() throws Exception {
+        mockMvc.perform(post(INGEST_URL)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(validEventNode("evt-enriched"))))
+                .andExpect(status().isCreated());
+
+        SecurityEventEntity entity = repository.findAll().stream()
+                .filter(e -> "evt-enriched".equals(e.getEventId()))
+                .findFirst()
+                .orElseThrow();
+
+        // CRITICAL(40) + DENY(20) + sensitive path "/login"(15), not a repeat offender
+        assertThat(entity.getAttackType()).isEqualTo("SQL/Command Injection");
+        assertThat(entity.getThreatScore()).isEqualTo(75);
+    }
+
+    @Test
+    void sixthEventForSameClientWithinTenMinuteWindowReceivesRepeatOffenderBonus() throws Exception {
+        String clientIp = "203.0.113.50";
+
+        ArrayNode firstFive = objectMapper.createArrayNode();
+        firstFive.add(validEventNode("evt-window-1", clientIp, "2026-07-11T10:00:00Z"));
+        firstFive.add(validEventNode("evt-window-2", clientIp, "2026-07-11T10:02:00Z"));
+        firstFive.add(validEventNode("evt-window-3", clientIp, "2026-07-11T10:04:00Z"));
+        firstFive.add(validEventNode("evt-window-4", clientIp, "2026-07-11T10:06:00Z"));
+        firstFive.add(validEventNode("evt-window-5", clientIp, "2026-07-11T10:08:00Z"));
+
+        mockMvc.perform(post(INGEST_URL)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(firstFive)))
+                .andExpect(status().isCreated());
+
+        mockMvc.perform(post(INGEST_URL)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(
+                                validEventNode("evt-window-6", clientIp, "2026-07-11T10:09:00Z"))))
+                .andExpect(status().isCreated());
+
+        SecurityEventEntity sixth = repository.findAll().stream()
+                .filter(e -> "evt-window-6".equals(e.getEventId()))
+                .findFirst()
+                .orElseThrow();
+
+        // 5 persisted peers within the last 10 minutes + itself = 6 > 5: repeat-offender bonus applies
+        assertThat(sixth.getThreatScore()).isEqualTo(90);
+    }
+
+    @Test
+    void differentClientAndOutOfWindowEventsDoNotReceiveRepeatOffenderBonus() throws Exception {
+        String clientIp = "203.0.113.60";
+        String otherClientIp = "203.0.113.61";
+
+        ArrayNode firstFive = objectMapper.createArrayNode();
+        firstFive.add(validEventNode("evt-isolated-1", clientIp, "2026-07-11T10:00:00Z"));
+        firstFive.add(validEventNode("evt-isolated-2", clientIp, "2026-07-11T10:02:00Z"));
+        firstFive.add(validEventNode("evt-isolated-3", clientIp, "2026-07-11T10:04:00Z"));
+        firstFive.add(validEventNode("evt-isolated-4", clientIp, "2026-07-11T10:06:00Z"));
+        firstFive.add(validEventNode("evt-isolated-5", clientIp, "2026-07-11T10:08:00Z"));
+
+        mockMvc.perform(post(INGEST_URL)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(firstFive)))
+                .andExpect(status().isCreated());
+
+        // Different client, same time range: unaffected by the other client's 5 prior events
+        mockMvc.perform(post(INGEST_URL)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(
+                                validEventNode("evt-other-client", otherClientIp, "2026-07-11T10:09:00Z"))))
+                .andExpect(status().isCreated());
+
+        // Same client, but 22 minutes after the last of the five prior events: outside the 10-minute window
+        mockMvc.perform(post(INGEST_URL)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(
+                                validEventNode("evt-out-of-window", clientIp, "2026-07-11T10:30:00Z"))))
+                .andExpect(status().isCreated());
+
+        SecurityEventEntity otherClientEvent = repository.findAll().stream()
+                .filter(e -> "evt-other-client".equals(e.getEventId()))
+                .findFirst()
+                .orElseThrow();
+        SecurityEventEntity outOfWindowEvent = repository.findAll().stream()
+                .filter(e -> "evt-out-of-window".equals(e.getEventId()))
+                .findFirst()
+                .orElseThrow();
+
+        assertThat(otherClientEvent.getThreatScore()).isEqualTo(75);
+        assertThat(outOfWindowEvent.getThreatScore()).isEqualTo(75);
     }
 }

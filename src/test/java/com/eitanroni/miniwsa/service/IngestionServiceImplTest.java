@@ -10,6 +10,10 @@ import com.eitanroni.miniwsa.domain.Severity;
 import com.eitanroni.miniwsa.persistence.entity.SecurityEventEntity;
 import com.eitanroni.miniwsa.persistence.mapper.SecurityEventEntityMapper;
 import com.eitanroni.miniwsa.persistence.repository.SecurityEventRepository;
+import com.eitanroni.miniwsa.service.enrichment.AttackClassificationService;
+import com.eitanroni.miniwsa.service.enrichment.EventEnrichmentService;
+import com.eitanroni.miniwsa.service.enrichment.RepeatOffenderService;
+import com.eitanroni.miniwsa.service.enrichment.ThreatScoreService;
 import org.hibernate.exception.ConstraintViolationException;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -43,7 +47,11 @@ class IngestionServiceImplTest {
 
     private IngestionServiceImpl service() {
         Clock fixedClock = Clock.fixed(FIXED_INSTANT, ZoneOffset.UTC);
-        return new IngestionServiceImpl(fixedClock, repository, mapper);
+        EventEnrichmentService enrichmentService = new EventEnrichmentService(
+                new AttackClassificationService(),
+                new ThreatScoreService(),
+                new RepeatOffenderService(repository));
+        return new IngestionServiceImpl(fixedClock, repository, mapper, enrichmentService);
     }
 
     private SecurityEventRequest sampleEvent(String eventId) {
@@ -129,6 +137,20 @@ class IngestionServiceImplTest {
         assertThat(response.events())
                 .extracting(result -> result.eventId())
                 .containsExactly("evt-3", "evt-1", "evt-2");
+    }
+
+    @Test
+    void entitiesArePersistedWithAttackTypeAndThreatScoreAlreadyEnriched() {
+        stubSuccessfulSave();
+
+        service().ingest(List.of(sampleEvent("evt-1")));
+
+        ArgumentCaptor<List<SecurityEventEntity>> captor = ArgumentCaptor.forClass(List.class);
+        verify(repository).saveAllAndFlush(captor.capture());
+
+        SecurityEventEntity entity = captor.getValue().get(0);
+        assertThat(entity.getAttackType()).isEqualTo("SQL/Command Injection");
+        assertThat(entity.getThreatScore()).isEqualTo(75); // CRITICAL(40) + DENY(20) + /login(15)
     }
 
     @Test

@@ -7,6 +7,7 @@ import com.eitanroni.miniwsa.domain.Action;
 import com.eitanroni.miniwsa.domain.RuleCategory;
 import com.eitanroni.miniwsa.domain.Severity;
 import com.eitanroni.miniwsa.persistence.entity.SecurityEventEntity;
+import com.eitanroni.miniwsa.service.enrichment.EnrichedSecurityEvent;
 import org.junit.jupiter.api.Test;
 
 import java.time.Instant;
@@ -37,11 +38,16 @@ class SecurityEventEntityMapperTest {
         );
     }
 
+    private EnrichedSecurityEvent enrichedWith(SecurityEventRequest request, Instant receivedAt) {
+        return new EnrichedSecurityEvent(request, receivedAt, "SQL/Command Injection", 75);
+    }
+
     @Test
     void mapsAllTopLevelFields() {
         Instant receivedAt = Instant.parse("2026-07-11T12:00:00Z");
 
-        SecurityEventEntity entity = mapper.toEntity(requestWith("Mozilla/5.0", "San Francisco"), receivedAt);
+        SecurityEventEntity entity = mapper.toEntity(
+                enrichedWith(requestWith("Mozilla/5.0", "San Francisco"), receivedAt));
 
         assertThat(entity.getEventId()).isEqualTo("evt-1");
         assertThat(entity.getEventTimestamp()).isEqualTo(Instant.parse("2026-07-11T10:15:30Z"));
@@ -61,7 +67,7 @@ class SecurityEventEntityMapperTest {
     @Test
     void mapsRuleFields() {
         SecurityEventEntity entity = mapper.toEntity(
-                requestWith("Mozilla/5.0", "San Francisco"), Instant.parse("2026-07-11T12:00:00Z"));
+                enrichedWith(requestWith("Mozilla/5.0", "San Francisco"), Instant.parse("2026-07-11T12:00:00Z")));
 
         assertThat(entity.getRuleId()).isEqualTo("950001");
         assertThat(entity.getRuleName()).isEqualTo("SQL_INJECTION");
@@ -73,7 +79,7 @@ class SecurityEventEntityMapperTest {
     @Test
     void mapsGeoLocationFields() {
         SecurityEventEntity entity = mapper.toEntity(
-                requestWith("Mozilla/5.0", "San Francisco"), Instant.parse("2026-07-11T12:00:00Z"));
+                enrichedWith(requestWith("Mozilla/5.0", "San Francisco"), Instant.parse("2026-07-11T12:00:00Z")));
 
         assertThat(entity.getCountry()).isEqualTo("US");
         assertThat(entity.getCity()).isEqualTo("San Francisco");
@@ -82,7 +88,7 @@ class SecurityEventEntityMapperTest {
     @Test
     void optionalUserAgentAndCityRemainNull() {
         SecurityEventEntity entity = mapper.toEntity(
-                requestWith(null, null), Instant.parse("2026-07-11T12:00:00Z"));
+                enrichedWith(requestWith(null, null), Instant.parse("2026-07-11T12:00:00Z")));
 
         assertThat(entity.getUserAgent()).isNull();
         assertThat(entity.getCity()).isNull();
@@ -92,8 +98,21 @@ class SecurityEventEntityMapperTest {
     void mapsReceivedAtExactly() {
         Instant receivedAt = Instant.parse("2026-07-11T12:00:00Z");
 
-        SecurityEventEntity entity = mapper.toEntity(requestWith("Mozilla/5.0", "San Francisco"), receivedAt);
+        SecurityEventEntity entity = mapper.toEntity(
+                enrichedWith(requestWith("Mozilla/5.0", "San Francisco"), receivedAt));
 
         assertThat(entity.getReceivedAt()).isEqualTo(receivedAt);
+    }
+
+    @Test
+    void mapsAttackTypeAndThreatScore() {
+        SecurityEventRequest request = requestWith("Mozilla/5.0", "San Francisco");
+        EnrichedSecurityEvent enrichedEvent = new EnrichedSecurityEvent(
+                request, Instant.parse("2026-07-11T12:00:00Z"), "SQL/Command Injection", 75);
+
+        SecurityEventEntity entity = mapper.toEntity(enrichedEvent);
+
+        assertThat(entity.getAttackType()).isEqualTo("SQL/Command Injection");
+        assertThat(entity.getThreatScore()).isEqualTo(75);
     }
 }
