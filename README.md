@@ -321,7 +321,7 @@ Every accepted event is classified and scored before it is persisted; the result
 
 The result is capped at 100, though the current rule set can reach at most 90 (`CRITICAL` + `DENY` + sensitive path + repeat offender).
 
-### Provisional repeat-offender assumptions (pending assignment clarification)
+### Repeat-offender semantics
 
 * The window is `[event.timestamp - 10 minutes, event.timestamp]` (inclusive), keyed on the event's own `timestamp` field — **not** `receivedAt`.
 * The event being scored counts toward its own total. A `clientIp` is a repeat offender once the total matching-event count — previously persisted rows plus earlier events in the same batch plus the event itself — **exceeds five** (i.e. the sixth and any later event in-window receive the bonus, not the first five).
@@ -613,7 +613,7 @@ At project completion, the full suite contained 167 passing tests with no failur
 * Timestamps are represented as ISO-8601 strings on the wire and parsed into `java.time.Instant`.
 * A single JSON object and a JSON array are both accepted by `POST /v1/events/ingest` and are normalized to the same internal list, so single-event requests report validation errors as `events[0].*`.
 
-### Provisional persistence assumptions (pending assignment clarification)
+### Persistence and batch semantics
 
 * `eventId` is assumed unique and is enforced with a database unique constraint.
 * A duplicate `eventId` currently returns `409 Conflict` with error code `DUPLICATE_EVENT`. This may change to idempotent (no-op success) behavior once the assignment clarification is available.
@@ -624,38 +624,30 @@ At project completion, the full suite contained 167 passing tests with no failur
 
 ### Repeat-offender semantics
 
-The assignment does not fully define whether the current event counts toward the threshold or whether the ten-minute window uses the original event timestamp or `receivedAt`.
+The assignment allows reasonable implementation assumptions where the exact semantics are not specified. The current implementation intentionally uses the following behavior:
 
-I handled this by selecting explicit, documented semantics, covering them with tests, and keeping the implementation isolated so the behavior can be changed without rewriting the ingestion flow.
+* The ten-minute window is based on the original event `timestamp`, not server-side `receivedAt`.
+* The window is inclusive: `[event.timestamp - 10 minutes, event.timestamp]`.
+* The event currently being scored is included in the count.
+* The sixth event from the same `clientIp` inside the window receives the repeat-offender bonus.
+* The count includes previously persisted events and earlier events from the same batch.
+* Batch events are evaluated by `timestamp` ascending, with original request order used to break equal-timestamp ties.
+* Threat scores are calculated once during ingestion.
+* Late or out-of-order events do not retroactively change previously persisted scores.
 
-### Atomic batch persistence and duplicates
+These choices are explicit, deterministic, and covered by automated tests. Alternative semantics, such as using `receivedAt` or applying the bonus only from the seventh event onward, could be supported by changing the isolated repeat-offender component.
 
-A preliminary existence check would not be race-safe. The database unique constraint is therefore authoritative. Persistence is executed in one transaction, and the database constraint name is inspected to distinguish duplicate events from unrelated integrity failures.
+### Event identity and batch persistence
 
-### Dynamic optional filters
+The assignment permits the assumption that `eventId` values are unique and cannot be duplicated.
 
-A static JPQL query using repeated `:parameter IS NULL OR ...` expressions was fragile with some PostgreSQL/Hibernate parameter types. The Samples API instead uses JPA Specifications so that predicates are created only for parameters that are actually supplied.
+The application nevertheless enforces a PostgreSQL unique constraint as a defensive data-integrity measure. A duplicate ID is therefore rejected with `409 Conflict`, although duplicates are not expected during normal operation.
 
-### Arbitrary offset pagination
+Batch ingestion is atomic and all-or-nothing:
 
-Spring's normal page-number abstraction does not correctly represent every absolute offset. A custom `OffsetBasedPageable` preserves the requested offset directly, allowing requests such as `limit=3&offset=2` to skip exactly two matching rows.
+* all validated events are persisted in one transaction;
+* a persistence failure rolls back the complete batch;
+* the API returns a non-success response so the producer knows that the batch was not accepted;
+* the system never silently commits only part of a batch.
 
-### Flyway migration compatibility
-
-The enrichment migration had to support databases that already contained V1 rows. The migration first introduced nullable columns, backfilled existing records, added constraints, and only then applied `NOT NULL`. A dedicated PostgreSQL integration test verifies the V1-to-V2 upgrade path.
-
-## What I Would Improve with More Time
-
-For a production-scale implementation, I would consider:
-
-* introducing Kafka or another durable message broker between producers and processing
-* moving repeat-offender detection to keyed streaming state using Flink, Kafka Streams, or a Redis-based time-window structure
-* partitioning the events table by time and defining a retention policy
-* using a dedicated analytical datastore for long-range and high-cardinality queries
-* implementing idempotent ingestion instead of returning a conflict for every duplicate
-* introducing a dead-letter queue for invalid or repeatedly failing events
-* adding observability with metrics, tracing, dashboards, and structured logs
-* adding authentication, authorization, and API rate limiting
-* supporting resumable generator submission after a partially successful batch run
-* adding the optional time-series statistics endpoint
-* running the application itself through Docker Compose in addition to PostgreSQL
+This design avoids ambiguous partial success and silent data loss. In a production-scale asynchronous system, durable messaging, producer retries, idempotent processing, and a dead-letter flow would provide stronger delivery guarantees.
