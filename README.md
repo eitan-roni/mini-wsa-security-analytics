@@ -288,7 +288,7 @@ curl.exe -X POST "http://localhost:8080/v1/events/ingest" `
 
 ## Persistence
 
-* PostgreSQL is used to persist accepted security events; start it with `docker compose up -d` before running the application (see [Start PostgreSQL](#start-postgresql)).
+* PostgreSQL is used to persist accepted security events; start it with `docker compose up -d` before running the application (see [Build and Run](#build-and-run)).
 * Flyway manages the schema (`src/main/resources/db/migration`); Hibernate runs with `ddl-auto: validate` and never generates DDL itself.
 * Accepted events are flattened into a single `security_events` table — nested `rule` and `geoLocation` fields become columns, not related tables.
 
@@ -537,7 +537,7 @@ A batch that receives a non-2xx response stops submission immediately (no retrie
 The output file's top-level JSON array is exactly the request body `POST /v1/events/ingest` expects:
 
 ```bash
-curl.exe -X POST \
+curl -X POST \
   http://localhost:8080/v1/events/ingest \
   -H "Content-Type: application/json" \
   --data-binary @generated-security-events.json
@@ -616,8 +616,7 @@ At project completion, the full suite contained 167 passing tests with no failur
 ### Persistence and batch semantics
 
 * `eventId` is assumed unique and is enforced with a database unique constraint.
-* A duplicate `eventId` currently returns `409 Conflict` with error code `DUPLICATE_EVENT`. This may change to idempotent (no-op success) behavior once the assignment clarification is available.
-* Batch persistence is atomic and all-or-nothing: a failure while saving any single event in a batch rolls back the entire batch, and no partial batches are ever stored.
+* A duplicate `eventId` returns `409 Conflict` with error code `DUPLICATE_EVENT`. Idempotent no-op handling would be a possible alternative if required by the producer contract.* Batch persistence is atomic and all-or-nothing: a failure while saving any single event in a batch rolls back the entire batch, and no partial batches are ever stored.
 * These are documented, easily reversible assumptions, not final design decisions.
 
 ## Challenging Parts
