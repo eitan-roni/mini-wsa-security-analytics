@@ -7,6 +7,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 class GeneratorArgumentParserTest {
 
+    // no arguments request use the default values
     @Test
     void defaultsAreUsedWhenNoArgsGiven() {
         GeneratorConfig config = GeneratorArgumentParser.parse(new String[0]);
@@ -21,6 +22,7 @@ class GeneratorArgumentParserTest {
         assertThat(config.idPrefix()).isEqualTo("gen-" + config.seed());
     }
 
+    // happy test
     @Test
     void everyOptionIsParsedWhenProvided() {
         String[] args = {
@@ -47,6 +49,7 @@ class GeneratorArgumentParserTest {
         assertThat(config.idPrefix()).isEqualTo("run-abc");
     }
 
+    // 0 counts (not a positive)
     @Test
     void zeroCountIsRejected() {
         assertThatThrownBy(() -> GeneratorArgumentParser.parse(new String[]{"--count", "0"}))
@@ -54,6 +57,7 @@ class GeneratorArgumentParserTest {
                 .hasMessageContaining("--count");
     }
 
+    // negative counts
     @Test
     void negativeCountIsRejected() {
         assertThatThrownBy(() -> GeneratorArgumentParser.parse(new String[]{"--count", "-5"}))
@@ -61,6 +65,7 @@ class GeneratorArgumentParserTest {
                 .hasMessageContaining("--count");
     }
 
+    // negative wave percent
     @Test
     void negativeWavePercentageIsRejected() {
         assertThatThrownBy(() -> GeneratorArgumentParser.parse(new String[]{"--wave-percentage", "-1"}))
@@ -68,6 +73,7 @@ class GeneratorArgumentParserTest {
                 .hasMessageContaining("--wave-percentage");
     }
 
+    // wave percent > 100
     @Test
     void wavePercentageAboveOneHundredIsRejected() {
         assertThatThrownBy(() -> GeneratorArgumentParser.parse(new String[]{"--wave-percentage", "101"}))
@@ -75,6 +81,7 @@ class GeneratorArgumentParserTest {
                 .hasMessageContaining("--wave-percentage");
     }
 
+    // wave size < 6
     @Test
     void waveSizeBelowSixIsRejected() {
         assertThatThrownBy(() -> GeneratorArgumentParser.parse(new String[]{"--wave-size", "5"}))
@@ -82,6 +89,7 @@ class GeneratorArgumentParserTest {
                 .hasMessageContaining("--wave-size");
     }
 
+    // 0 batch size
     @Test
     void zeroBatchSizeIsRejected() {
         assertThatThrownBy(() -> GeneratorArgumentParser.parse(new String[]{"--batch-size", "0"}))
@@ -89,6 +97,7 @@ class GeneratorArgumentParserTest {
                 .hasMessageContaining("--batch-size");
     }
 
+    // negative batch size
     @Test
     void negativeBatchSizeIsRejected() {
         assertThatThrownBy(() -> GeneratorArgumentParser.parse(new String[]{"--batch-size", "-10"}))
@@ -117,6 +126,7 @@ class GeneratorArgumentParserTest {
                 .hasMessageContaining("--count");
     }
 
+    // testing --help cases
     @Test
     void isHelpRequestedDetectsHelpFlagAnywhereInArgs() {
         assertThat(GeneratorArgumentParser.isHelpRequested(new String[]{"--help"})).isTrue();

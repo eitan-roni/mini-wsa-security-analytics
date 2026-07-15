@@ -10,6 +10,7 @@ class ThreatScoreServiceTest {
 
     private final ThreatScoreService service = new ThreatScoreService();
 
+    //Verifies that all threat-score components are combined correctly for a high-risk event
     @Test
     void criticalDenyLoginRepeatOffenderScores90() {
         int score = service.calculate(Severity.CRITICAL, Action.DENY, "/login", true);
@@ -38,6 +39,7 @@ class ThreatScoreServiceTest {
         assertThat(score).isEqualTo(10);
     }
 
+    // path contains both : /admin/login - only one bonus is added
     @Test
     void pathContainingBothAdminAndLoginReceivesOnlyOnePathBonus() {
         int withBoth = service.calculate(Severity.LOW, Action.MONITOR, "/admin/login", false);
@@ -46,6 +48,7 @@ class ThreatScoreServiceTest {
         assertThat(withBoth).isEqualTo(withOne);
     }
 
+    // two calculations : with and without repeat
     @Test
     void repeatOffenderAddsExactlyFifteen() {
         int withoutBonus = service.calculate(Severity.MEDIUM, Action.MONITOR, "/checkout", false);

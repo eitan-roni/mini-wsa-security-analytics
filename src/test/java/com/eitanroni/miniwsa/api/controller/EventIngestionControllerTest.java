@@ -78,6 +78,7 @@ class EventIngestionControllerTest {
         return event;
     }
 
+    // single JSON sent (tests the http response)
     @Test
     void validSingleEventReturns201() throws Exception {
         when(ingestionService.ingest(anyList())).thenReturn(
@@ -93,6 +94,7 @@ class EventIngestionControllerTest {
                 .andExpect(jsonPath("$.events[0].receivedAt").value("2026-07-11T12:00:00Z"));
     }
 
+    // list of JSON sent (tests the http response)
     @Test
     void validBatchReturns201() throws Exception {
         when(ingestionService.ingest(anyList())).thenReturn(
@@ -120,6 +122,7 @@ class EventIngestionControllerTest {
                 .andExpect(jsonPath("$.events[2].receivedAt").value("2026-07-11T12:00:00Z"));
     }
 
+    // single JSON sent (tests the data the controller pass to the service)
     @Test
     @SuppressWarnings("unchecked")
     void serviceReceivesOneEventForSingleObjectRequest() throws Exception {
@@ -159,6 +162,7 @@ class EventIngestionControllerTest {
         assertThat(capturedEvent.rule().category()).isEqualTo(RuleCategory.INJECTION);
     }
 
+    // List of JSON sent (tests the data the controller pass to the service)
     @Test
     @SuppressWarnings("unchecked")
     void serviceReceivesAllEventsForBatchRequest() throws Exception {
@@ -197,6 +201,7 @@ class EventIngestionControllerTest {
                 .containsOnly(14227L);
     }
 
+    // eventId is missing
     @Test
     void missingRequiredTopLevelFieldReturns400() throws Exception {
         ObjectNode event = validEventNode("evt-1");
@@ -212,6 +217,7 @@ class EventIngestionControllerTest {
         verifyNoInteractions(ingestionService);
     }
 
+    // nested object is missing ("id")
     @Test
     void invalidNestedRuleFieldReturns400() throws Exception {
         ObjectNode event = validEventNode("evt-1");
@@ -226,6 +232,7 @@ class EventIngestionControllerTest {
         verifyNoInteractions(ingestionService);
     }
 
+    // invalid event in batch (empty rule.id)
     @Test
     void invalidEventInsideBatchReturns400WithIndex() throws Exception {
         ObjectNode validEvent = validEventNode("evt-1");
@@ -245,6 +252,7 @@ class EventIngestionControllerTest {
         verifyNoInteractions(ingestionService);
     }
 
+    // negative requestSize
     @Test
     void negativeRequestSizeReturns400() throws Exception {
         ObjectNode event = validEventNode("evt-1");
@@ -259,6 +267,7 @@ class EventIngestionControllerTest {
         verifyNoInteractions(ingestionService);
     }
 
+    // send invalid action
     @Test
     void invalidEnumValueReturns400() throws Exception {
         ObjectNode event = validEventNode("evt-1");
@@ -273,6 +282,7 @@ class EventIngestionControllerTest {
         verifyNoInteractions(ingestionService);
     }
 
+    // not supported timestamp
     @Test
     void invalidTimestampFormatReturns400() throws Exception {
         ObjectNode event = validEventNode("evt-1");
@@ -287,6 +297,7 @@ class EventIngestionControllerTest {
         verifyNoInteractions(ingestionService);
     }
 
+    // empty array
     @Test
     void emptyArrayReturns400() throws Exception {
         mockMvc.perform(post(INGEST_URL)
@@ -298,6 +309,7 @@ class EventIngestionControllerTest {
         verifyNoInteractions(ingestionService);
     }
 
+    // JSON structure is broken ('}' is missing)
     @Test
     void malformedJsonReturns400() throws Exception {
         mockMvc.perform(post(INGEST_URL)
@@ -309,6 +321,7 @@ class EventIngestionControllerTest {
         verifyNoInteractions(ingestionService);
     }
 
+    // not object / Array is sent
     @Test
     void jsonPrimitiveRootReturns400() throws Exception {
         mockMvc.perform(post(INGEST_URL)

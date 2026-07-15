@@ -71,6 +71,7 @@ class SecurityEventGeneratorMainTest {
         assertThat(Files.exists(outputFile)).isFalse();
     }
 
+    // happy test (parse → generate → write → print summary)
     @Test
     void validRunGeneratesFileAndPrintsSummary() {
         Path outputFile = tempDir.resolve("events.json");
@@ -105,8 +106,10 @@ class SecurityEventGeneratorMainTest {
         assertThat(outBytes.toString(StandardCharsets.UTF_8)).contains("Submitted 25 events successfully");
     }
 
+    // fail sending the file to API
     @Test
     void directSubmissionFailureExitsNonZeroAndReportsFailedBatch() throws IOException {
+        // the local server always returns error 500
         String apiUrl = startServerRespondingWith(500, "{\"error\":\"INTERNAL_ERROR\"}");
 
         Path outputFile = tempDir.resolve("failed-submit.json");

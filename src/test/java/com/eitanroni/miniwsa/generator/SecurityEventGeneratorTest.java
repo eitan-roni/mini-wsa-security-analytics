@@ -47,6 +47,7 @@ class SecurityEventGeneratorTest {
                 GeneratorConfig.DEFAULT_BATCH_SIZE, FIXED_ID_PREFIX);
     }
 
+    // happy test (correct events, no duplicated eventId, correct wave percent)
     @Test
     void tenThousandEventsAreGeneratedExactlyWithUniqueIdsAndWaves() {
         SecurityEventGenerator generator = new SecurityEventGenerator(FIXED_CLOCK);
@@ -61,6 +62,7 @@ class SecurityEventGeneratorTest {
         assertThat(dataset.waveEventCount()).isEqualTo(3000);
     }
 
+    // testing Jakarta Validations
     @Test
     void everyGeneratedEventPassesBeanValidation() {
         SecurityEventGenerator generator = new SecurityEventGenerator(FIXED_CLOCK);
@@ -92,6 +94,7 @@ class SecurityEventGeneratorTest {
         assertThat(severities).containsExactlyInAnyOrder(Severity.values());
     }
 
+    // two equals data sets (the same seed and time)
     @Test
     void sameSeedAndClockProduceIdenticalDataset() {
         GeneratedDataset datasetA = new SecurityEventGenerator(FIXED_CLOCK).generate(config(300, 55L, 30, 10));
@@ -110,6 +113,7 @@ class SecurityEventGeneratorTest {
         assertThat(datasetA.events()).isNotEqualTo(datasetB.events());
     }
 
+    // testing the repeat offender - at least 6 events with the same ip and path withing 10 minutes
     @Test
     void attackWaveSharesClientIpAndPathAndFitsWithinTenMinutes() {
         SecurityEventGenerator generator = new SecurityEventGenerator(FIXED_CLOCK);
@@ -140,6 +144,7 @@ class SecurityEventGeneratorTest {
         assertThat(dataset.waveEventCount()).isZero();
     }
 
+    // generator not loosing events when wave sizes not equal
     @Test
     void countNotDivisibleByWaveSizeStillGeneratesExactCount() {
         SecurityEventGenerator generator = new SecurityEventGenerator(FIXED_CLOCK);

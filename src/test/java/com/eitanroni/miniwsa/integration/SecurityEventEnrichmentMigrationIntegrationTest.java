@@ -30,6 +30,7 @@ class SecurityEventEnrichmentMigrationIntegrationTest {
     @Container
     static final PostgreSQLContainer<?> POSTGRES = new PostgreSQLContainer<>("postgres:16-alpine");
 
+    // upgrading existing system (verify old data is updated with the new schema)
     @Test
     void v2MigrationBackfillsAttackTypeAndThreatScoreForExistingV1Row() throws Exception {
         migrateTo("1");

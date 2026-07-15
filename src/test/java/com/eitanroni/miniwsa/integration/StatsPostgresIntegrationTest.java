@@ -84,6 +84,7 @@ class StatsPostgresIntegrationTest {
         repository.saveAll(List.of(events));
     }
 
+    // verify that stats are calculated by receivedAt (and not by eventTimestamp )
     @Test
     void filtersByReceivedAtNotEventTimestamp() throws Exception {
         seed(
@@ -146,6 +147,7 @@ class StatsPostgresIntegrationTest {
                 .andExpect(jsonPath("$.topTargetedPaths[0].path").value("/config-a"));
     }
 
+    // saving events from two difference configurations
     @Test
     void aggregatesAcrossConfigurationsWhenConfigIdAbsent() throws Exception {
         seed(
@@ -162,6 +164,7 @@ class StatsPostgresIntegrationTest {
                 .andExpect(jsonPath("$.totalEvents").value(2));
     }
 
+    // varify that average , count and group by are successfully calculated by PostgreSQL
     @Test
     void correctCategoryCountsAndAverageScores() throws Exception {
         seed(
@@ -200,6 +203,7 @@ class StatsPostgresIntegrationTest {
                 .andExpect(jsonPath("$.byAction.MONITOR").value(1));
     }
 
+    // group by IPS and sort by count
     @Test
     void topAttackersOrderedByCountAndLimitedToTen() throws Exception {
         List<SecurityEventEntity> events = new ArrayList<>();
@@ -250,6 +254,7 @@ class StatsPostgresIntegrationTest {
                 .andExpect(jsonPath("$.topTargetedPaths[9].count").value(2));
     }
 
+    // no events in range of time
     @Test
     void emptyTimeRangeResultReturnsEmptyAggregates() throws Exception {
         seed(event(14227L, WINDOW_FROM, WINDOW_FROM, "203.0.113.1", "/p1",

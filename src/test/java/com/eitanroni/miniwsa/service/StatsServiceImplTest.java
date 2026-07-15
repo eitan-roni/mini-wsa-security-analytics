@@ -68,6 +68,8 @@ class StatsServiceImplTest {
         return projection;
     }
 
+    // Verifies that the service correctly builds every section of the statistics response
+    // from repository projections
     @Test
     void assemblesEveryResponseSectionFromRepositoryProjections() {
         List<CategoryStatsProjection> categoryProjections =
@@ -108,6 +110,7 @@ class StatsServiceImplTest {
         assertThat(response.topTargetedPaths().get(0).count()).isEqualTo(234L);
     }
 
+    // Verifies that the provided configId is passed to every statistics repository query.
     @Test
     void configIdIsPassedToEveryRepositoryQueryWhenPresent() {
         when(repository.countByReceivedAtRange(14227L, FROM, TO)).thenReturn(0L);
@@ -121,6 +124,7 @@ class StatsServiceImplTest {
         verify(repository).findTopTargetedPaths(14227L, FROM, TO, TOP_10);
     }
 
+    // Verifies that null is passed to every repository query when no configId filter is provided
     @Test
     void nullConfigIdIsPassedToEveryRepositoryQueryWhenAbsent() {
         when(repository.countByReceivedAtRange(isNull(), eq(FROM), eq(TO))).thenReturn(0L);
@@ -134,6 +138,7 @@ class StatsServiceImplTest {
         verify(repository).findTopTargetedPaths(isNull(), eq(FROM), eq(TO), eq(TOP_10));
     }
 
+    // Verifies that empty repository results produce empty maps and lists instead of null values
     @Test
     void emptyProjectionResultsProduceEmptyMapsAndLists() {
         when(repository.countByReceivedAtRange(null, FROM, TO)).thenReturn(0L);

@@ -42,6 +42,7 @@ class SecurityEventEntityMapperTest {
         return new EnrichedSecurityEvent(request, receivedAt, "SQL/Command Injection", 75);
     }
 
+    // all them main request fields are correctly copy to the entity
     @Test
     void mapsAllTopLevelFields() {
         Instant receivedAt = Instant.parse("2026-07-11T12:00:00Z");
@@ -64,6 +65,7 @@ class SecurityEventEntityMapperTest {
         assertThat(entity.getResponseSize()).isEqualTo(0L);
     }
 
+    // the mapper convert nested data (from EnrichedSecurityEvent to SecurityEventEntity)
     @Test
     void mapsRuleFields() {
         SecurityEventEntity entity = mapper.toEntity(
@@ -94,6 +96,7 @@ class SecurityEventEntityMapperTest {
         assertThat(entity.getCity()).isNull();
     }
 
+    // receivedAt copy to Entity
     @Test
     void mapsReceivedAtExactly() {
         Instant receivedAt = Instant.parse("2026-07-11T12:00:00Z");
@@ -104,6 +107,8 @@ class SecurityEventEntityMapperTest {
         assertThat(entity.getReceivedAt()).isEqualTo(receivedAt);
     }
 
+
+    // enrichment fields copy to Entity
     @Test
     void mapsAttackTypeAndThreatScore() {
         SecurityEventRequest request = requestWith("Mozilla/5.0", "San Francisco");

@@ -66,6 +66,7 @@ class SamplesControllerTest {
         return new SampleSearchResponse(1, limit, offset, List.of(event));
     }
 
+    // a query without parameters, use default params (limit = 20 , offset = 0)
     @Test
     void noQueryParametersUsesLimitTwentyAndOffsetZero() throws Exception {
         when(samplesService.search(any())).thenReturn(emptyResponse(20, 0));
@@ -75,6 +76,7 @@ class SamplesControllerTest {
                 .andExpect(jsonPath("$.limit").value(20))
                 .andExpect(jsonPath("$.offset").value(0));
 
+        // Catch the SampleSearchCriteria who the controller sent to the service
         var captor = ArgumentCaptor.forClass(SampleSearchCriteria.class);
         verify(samplesService).search(captor.capture());
 
@@ -88,6 +90,7 @@ class SamplesControllerTest {
         assertThat(criteria.offset()).isEqualTo(0);
     }
 
+    // happy path test
     @Test
     void requestWithEveryFilterReturns200() throws Exception {
         when(samplesService.search(any())).thenReturn(sampleResponse(10, 5));
@@ -152,6 +155,7 @@ class SamplesControllerTest {
         assertThat(captor.getValue().from()).isNull();
     }
 
+    // from timestamp unsupported (not ISO-8601)
     @Test
     void malformedFromReturns400() throws Exception {
         mockMvc.perform(get(SAMPLES_URL).param("from", "not-a-date"))
@@ -162,6 +166,7 @@ class SamplesControllerTest {
         verifyNoInteractions(samplesService);
     }
 
+    // to timestamp unsupported (not ISO-8601)
     @Test
     void malformedToReturns400() throws Exception {
         mockMvc.perform(get(SAMPLES_URL).param("to", "not-a-date"))
@@ -172,6 +177,7 @@ class SamplesControllerTest {
         verifyNoInteractions(samplesService);
     }
 
+    // invalid enum params
     @Test
     void invalidCategoryReturns400() throws Exception {
         mockMvc.perform(get(SAMPLES_URL).param("category", "NOT_A_CATEGORY"))
@@ -182,6 +188,7 @@ class SamplesControllerTest {
         verifyNoInteractions(samplesService);
     }
 
+    // invalid enum param
     @Test
     void invalidActionReturns400() throws Exception {
         mockMvc.perform(get(SAMPLES_URL).param("action", "NOT_AN_ACTION"))
@@ -192,6 +199,7 @@ class SamplesControllerTest {
         verifyNoInteractions(samplesService);
     }
 
+    // limit = 0
     @Test
     void limitZeroReturns400() throws Exception {
         mockMvc.perform(get(SAMPLES_URL).param("limit", "0"))
@@ -201,6 +209,7 @@ class SamplesControllerTest {
         verifyNoInteractions(samplesService);
     }
 
+    // limit > 100
     @Test
     void limitAboveMaximumReturns400() throws Exception {
         mockMvc.perform(get(SAMPLES_URL).param("limit", "101"))
@@ -210,6 +219,7 @@ class SamplesControllerTest {
         verifyNoInteractions(samplesService);
     }
 
+    // negative offset
     @Test
     void negativeOffsetReturns400() throws Exception {
         mockMvc.perform(get(SAMPLES_URL).param("offset", "-1"))
@@ -219,6 +229,7 @@ class SamplesControllerTest {
         verifyNoInteractions(samplesService);
     }
 
+    // sends equal from / to
     @Test
     void fromEqualToToReturns400() throws Exception {
         mockMvc.perform(get(SAMPLES_URL)
@@ -227,9 +238,11 @@ class SamplesControllerTest {
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.violations[?(@.field == 'to')]").exists());
 
+        // the request don't move to the service
         verifyNoInteractions(samplesService);
     }
 
+    // to < from
     @Test
     void fromAfterToReturns400() throws Exception {
         mockMvc.perform(get(SAMPLES_URL)

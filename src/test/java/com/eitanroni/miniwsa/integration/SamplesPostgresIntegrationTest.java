@@ -161,6 +161,7 @@ class SamplesPostgresIntegrationTest {
                 .andExpect(jsonPath("$.events[0].action").value("ALERT"));
     }
 
+    // testing the And operator
     @Test
     void combinationOfFiltersAppliedTogether() throws Exception {
         seed(
@@ -180,6 +181,7 @@ class SamplesPostgresIntegrationTest {
                 .andExpect(jsonPath("$.events[0].path").value("/match"));
     }
 
+    // Samples API filter events by eventTimestamp (and not receivedAt)
     @Test
     void timestampFilteringIsIndependentOfReceivedAt() throws Exception {
         seed(
@@ -196,6 +198,7 @@ class SamplesPostgresIntegrationTest {
                 .andExpect(jsonPath("$.events[0].path").value("/included"));
     }
 
+    // correct totalCount and total count
     @Test
     void paginationAndTotalCountAreCorrect() throws Exception {
         List<SecurityEventEntity> events = new ArrayList<>();
@@ -248,6 +251,7 @@ class SamplesPostgresIntegrationTest {
                 .andExpect(jsonPath("$.events[2].path").value("/first-inserted"));
     }
 
+    // testing offset and limit
     @Test
     void arbitraryOffsetNotAlignedToLimitReturnsCorrectSlice() throws Exception {
         List<SecurityEventEntity> events = new ArrayList<>();

@@ -44,6 +44,7 @@ class IngestionApiClientTest {
     private final ObjectMapper objectMapper = new ObjectMapper().registerModule(new JavaTimeModule());
 
     private String startServer(String contextPath) throws IOException {
+        // use local http server
         server = HttpServer.create(new InetSocketAddress("localhost", 0), 0);
         server.createContext(contextPath, this::handle);
         server.start();
@@ -110,6 +111,7 @@ class IngestionApiClientTest {
         return events;
     }
 
+    // test batches calculation (last one not full)
     @Test
     void batchesUseConfiguredBatchSizeIncludingFinalPartialBatch() throws IOException {
         String apiUrl = startServer("/v1/events/ingest");
@@ -123,6 +125,7 @@ class IngestionApiClientTest {
         assertThat(receivedBatchSizes).containsExactly(10, 10, 5);
     }
 
+    // correct path and content type
     @Test
     void correctEndpointAndContentTypeAreUsed() throws IOException {
         String apiUrl = startServer("/v1/events/ingest");
@@ -134,6 +137,7 @@ class IngestionApiClientTest {
         assertThat(receivedContentTypes).containsExactly("application/json");
     }
 
+    // batch 2 fails , batch 3 not applied
     @Test
     void nonTwoxxResponseStopsProcessingAndReportsFailure() throws IOException {
         String apiUrl = startServer("/v1/events/ingest");

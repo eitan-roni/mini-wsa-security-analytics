@@ -27,6 +27,7 @@ public final class SecurityEventGeneratorMain {
      * Testable entry point: returns a process exit code instead of calling
      * {@link System#exit(int)} directly, so tests can assert on it.
      */
+    // checks if --help exists
     static int run(String[] args, PrintStream out, PrintStream err) {
         if (GeneratorArgumentParser.isHelpRequested(args)) {
             out.print(GeneratorArgumentParser.USAGE);
@@ -42,6 +43,7 @@ public final class SecurityEventGeneratorMain {
             return 1;
         }
 
+        // Generating the events (the same Ip, Path and Category)
         SecurityEventGenerator generator = new SecurityEventGenerator(Clock.systemUTC());
         GeneratedDataset dataset = generator.generate(config);
 
@@ -57,6 +59,7 @@ public final class SecurityEventGeneratorMain {
         out.println("Output: " + config.output());
         out.println("Seed: " + config.seed());
 
+        // if '--api-url' is used
         if (config.hasApiUrl()) {
             return submit(config, dataset, out, err);
         }
@@ -64,12 +67,14 @@ public final class SecurityEventGeneratorMain {
         return 0;
     }
 
+    // sends the events to API ingestion using Http batches
     private static int submit(GeneratorConfig config, GeneratedDataset dataset, PrintStream out, PrintStream err) {
         ObjectMapper objectMapper = new ObjectMapper()
                 .registerModule(new JavaTimeModule())
                 .disable(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS);
         IngestionApiClient client = new IngestionApiClient(objectMapper);
 
+        // converts the objects to JSON
         SubmissionResult result = client.submit(dataset.events(), config.apiUrl(), config.batchSize(), out);
 
         if (!result.success()) {

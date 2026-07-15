@@ -44,6 +44,7 @@ class EventJsonWriterTest {
                 0L);
     }
 
+    // generate 3 events, write to JSON and read
     @Test
     void writesValidJsonArrayThatDeserializesBackToTheSameRequestDtos() throws IOException {
         List<SecurityEventRequest> events = List.of(sampleEvent("evt-1"), sampleEvent("evt-2"), sampleEvent("evt-3"));
@@ -61,9 +62,11 @@ class EventJsonWriterTest {
         List<SecurityEventRequest> roundTripped = mapper.readValue(outputFile.toFile(),
                 mapper.getTypeFactory().constructCollectionType(List.class, SecurityEventRequest.class));
 
+        // the same events
         assertThat(roundTripped).isEqualTo(events);
     }
 
+    // empty JSON (supported)
     @Test
     void writesEmptyArrayForEmptyDataset() throws IOException {
         Path outputFile = tempDir.resolve("empty.json");

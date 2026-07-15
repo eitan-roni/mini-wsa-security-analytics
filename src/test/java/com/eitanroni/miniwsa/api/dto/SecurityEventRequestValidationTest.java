@@ -60,6 +60,7 @@ class SecurityEventRequestValidationTest {
         );
     }
 
+    // happy test
     @Test
     void fullyValidEventHasNoViolations() {
         Set<ConstraintViolation<SecurityEventRequest>> violations = validator.validate(validEvent());
@@ -67,6 +68,7 @@ class SecurityEventRequestValidationTest {
         assertThat(violations).isEmpty();
     }
 
+    // missing required param (eventId)
     @Test
     void missingRequiredTopLevelFieldCausesViolation() {
         SecurityEventRequest event = new SecurityEventRequest(
@@ -93,6 +95,7 @@ class SecurityEventRequestValidationTest {
                 .anyMatch(violation -> violation.getPropertyPath().toString().equals("eventId"));
     }
 
+    // invalid rule.category
     @Test
     void invalidNestedRuleCausesViolation() {
         RuleRequest invalidRule = new RuleRequest("", "SQL_INJECTION", "SQL Injection Attack Detected", Severity.CRITICAL, null);
@@ -122,6 +125,7 @@ class SecurityEventRequestValidationTest {
                 .anyMatch(violation -> violation.getPropertyPath().toString().equals("rule.category"));
     }
 
+    // negative numeric param (requestSize)
     @Test
     void negativeRequestSizeCausesViolation() {
         SecurityEventRequest event = new SecurityEventRequest(
@@ -148,6 +152,7 @@ class SecurityEventRequestValidationTest {
                 .anyMatch(violation -> violation.getPropertyPath().toString().equals("requestSize"));
     }
 
+    // missing optional params (userAgent , city)
     @Test
     void optionalCityAndUserAgentMayBeNull() {
         SecurityEventRequest event = new SecurityEventRequest(

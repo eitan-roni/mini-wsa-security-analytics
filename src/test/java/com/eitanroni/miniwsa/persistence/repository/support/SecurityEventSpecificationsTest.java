@@ -38,11 +38,13 @@ class SecurityEventSpecificationsTest {
     @Mock
     private Predicate predicate;
 
+    // config not sent - no filtering
     @Test
     void configIdEqualsReturnsNullSpecificationWhenConfigIdIsAbsent() {
         assertThat(SecurityEventSpecifications.configIdEquals(null)).isNull();
     }
 
+    // the Specification returns the same Predicate (the Where filter) by the given configuration
     @Test
     void configIdEqualsBuildsEqualityPredicateWhenPresent() {
         when(root.get("configId")).thenReturn(path);
@@ -59,6 +61,7 @@ class SecurityEventSpecificationsTest {
         assertThat(SecurityEventSpecifications.eventTimestampFrom(null)).isNull();
     }
 
+    // Predicate is correct when event_timestamp >= from
     @Test
     void eventTimestampFromBuildsGreaterThanOrEqualToPredicateWhenPresent() {
         Instant from = Instant.parse("2026-07-01T00:00:00Z");
@@ -76,6 +79,7 @@ class SecurityEventSpecificationsTest {
         assertThat(SecurityEventSpecifications.eventTimestampTo(null)).isNull();
     }
 
+    // Predicate is correct when event_timestamp < to
     @Test
     void eventTimestampToBuildsLessThanPredicateWhenPresent() {
         Instant to = Instant.parse("2026-07-02T00:00:00Z");
@@ -93,6 +97,7 @@ class SecurityEventSpecificationsTest {
         assertThat(SecurityEventSpecifications.categoryEquals(null)).isNull();
     }
 
+    // testing predicate of category
     @Test
     void categoryEqualsBuildsEqualityPredicateWhenPresent() {
         when(root.get("category")).thenReturn(path);
@@ -109,6 +114,7 @@ class SecurityEventSpecificationsTest {
         assertThat(SecurityEventSpecifications.actionEquals(null)).isNull();
     }
 
+    // testing predicate of action
     @Test
     void actionEqualsBuildsEqualityPredicateWhenPresent() {
         when(root.get("action")).thenReturn(path);

@@ -61,6 +61,7 @@ class RepeatOffenderServiceTest {
         );
     }
 
+    // only 5 events - there is no bonus at all
     @Test
     void fiveTotalEventsDoNotReceiveBonus() {
         stubNoPersistedEvents();
@@ -78,6 +79,7 @@ class RepeatOffenderServiceTest {
         assertThat(results).containsExactly(false, false, false, false, false);
     }
 
+    // only the sixth event get a bonus (false, false, false, false, false, true)
     @Test
     void sixthEventReceivesBonus() {
         stubNoPersistedEvents();
@@ -96,6 +98,7 @@ class RepeatOffenderServiceTest {
         assertThat(results).containsExactly(false, false, false, false, false, true);
     }
 
+    // Verifies that an event exactly ten minutes old is still included in the repeat-offender time window
     @Test
     void eventExactlyTenMinutesOldIsIncluded() {
         when(repository.countByClientIpAndEventTimestampBetween(anyString(), any(), any())).thenReturn(4L);
@@ -111,6 +114,7 @@ class RepeatOffenderServiceTest {
         assertThat(results.get(1)).isTrue();
     }
 
+    // Verifies that an event older than ten minutes is excluded from the repeat-offender window
     @Test
     void eventOlderThanTenMinutesIsExcluded() {
         when(repository.countByClientIpAndEventTimestampBetween(anyString(), any(), any())).thenReturn(4L);
@@ -127,6 +131,7 @@ class RepeatOffenderServiceTest {
         assertThat(results.get(1)).isFalse();
     }
 
+    // the sixth event in the batch belong to different IP - there is no bonus
     @Test
     void eventsFromAnotherIpAreExcluded() {
         stubNoPersistedEvents();
@@ -165,6 +170,7 @@ class RepeatOffenderServiceTest {
         assertThat(results.get(5)).isTrue();
     }
 
+    // Verifies that events are processed by their timestamp, not by the order they appear in the batch.
     @Test
     void batchInputOrderDoesNotOverrideEventTimestampOrder() {
         stubNoPersistedEvents();
@@ -189,6 +195,8 @@ class RepeatOffenderServiceTest {
         assertThat(results.subList(1, 6)).containsOnly(false);
     }
 
+    // Verifies that when events have the same timestamp,
+    // they are processed in the order they appear in the batch.
     @Test
     void equalTimestampsUseRequestOrderAsTieBreaker() {
         stubNoPersistedEvents();
@@ -207,6 +215,7 @@ class RepeatOffenderServiceTest {
         assertThat(results).containsExactly(false, false, false, false, false, true);
     }
 
+    // Verifies that a late event does not update events that were already saved
     @Test
     void lateEventDoesNotTriggerRecalculationOfAlreadyStoredEvents() {
         stubNoPersistedEvents();
