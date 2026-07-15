@@ -643,7 +643,7 @@ The assignment permits the assumption that `eventId` values are unique and canno
 
 The application nevertheless enforces a PostgreSQL unique constraint as a defensive data-integrity measure. A duplicate ID is therefore rejected with `409 Conflict`, although duplicates are not expected during normal operation.
 
-Batch ingestion is atomic and all-or-nothing:
+Batch ingestion is atomic and all-or-nothing :
 
 * all validated events are persisted in one transaction;
 * a persistence failure rolls back the complete batch;
