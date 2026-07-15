@@ -69,6 +69,7 @@ class SamplesServiceImplTest {
                 .thenAnswer(invocation -> new PageImpl<>(content, invocation.getArgument(1), totalElements));
     }
 
+    // Verifies that the service builds a search specification and passes it to the repository
     @Test
     void searchBuildsASpecificationAndDelegatesToRepositoryFindAll() {
         stubFindAll(List.of(), 0);
@@ -82,6 +83,7 @@ class SamplesServiceImplTest {
         assertThat(specCaptor.getValue()).isNotNull();
     }
 
+    // OffsetBasedPageable is correctly used
     @Test
     void pageableReflectsCriteriaLimitAndOffsetNotPageNumber() {
         stubFindAll(List.of(), 0);
@@ -97,6 +99,7 @@ class SamplesServiceImplTest {
         assertThat(pageable.getPageSize()).isEqualTo(3);
     }
 
+    // Verifies that a limit of 100 is correctly applied as the pageable page size
     @Test
     void maximumLimitOfOneHundredIsHonoredInPageable() {
         stubFindAll(List.of(), 0);
@@ -110,6 +113,8 @@ class SamplesServiceImplTest {
         assertThat(pageableCaptor.getValue().getPageSize()).isEqualTo(100);
     }
 
+    // Verifies that sample events are sorted by eventTimestamp in descending order,
+    // and by id in descending order when timestamps are equal
     @Test
     void pageableSortsByEventTimestampDescendingThenIdDescending() {
         stubFindAll(List.of(), 0);
@@ -128,6 +133,8 @@ class SamplesServiceImplTest {
         assertThat(orders.get(1).isDescending()).isTrue();
     }
 
+    // Verifies that totalCount represents all matching records before pagination,
+    // not only the events returned in the current page.
     @Test
     void totalCountReflectsCountBeforePaginationNotPageSize() {
         stubFindAll(List.of(entity("evt-1", FROM, FROM)), 57);
@@ -139,6 +146,7 @@ class SamplesServiceImplTest {
         assertThat(response.events()).hasSize(1);
     }
 
+    // Verifies that an empty repository result produces an empty event list and a total count of zero
     @Test
     void emptyResultProducesEmptyEventsListAndZeroTotalCount() {
         stubFindAll(List.of(), 0);
@@ -152,6 +160,7 @@ class SamplesServiceImplTest {
         assertThat(response.offset()).isEqualTo(0);
     }
 
+    // Verifies that all original and enriched entity fields are correctly mapped to the API response
     @Test
     void responseMapsOriginalAndEnrichedFieldsFromEntity() {
         Instant eventTimestamp = Instant.parse("2026-07-01T10:00:00Z");

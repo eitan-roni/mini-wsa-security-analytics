@@ -11,6 +11,8 @@ class AttackClassificationServiceTest {
 
     private final AttackClassificationService service = new AttackClassificationService();
 
+    // the test runs separately for each argument.
+    // in each test tested the return category and expectedAttackType values
     @ParameterizedTest
     @CsvSource({
             "INJECTION, SQL/Command Injection",
@@ -25,6 +27,7 @@ class AttackClassificationServiceTest {
         assertThat(service.classify(category)).isEqualTo(expectedAttackType);
     }
 
+    // verify that RuleCategory values are not null
     @Test
     void everyRuleCategoryIsMapped() {
         for (RuleCategory category : RuleCategory.values()) {

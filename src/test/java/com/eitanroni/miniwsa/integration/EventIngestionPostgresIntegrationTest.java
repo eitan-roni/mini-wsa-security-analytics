@@ -82,6 +82,7 @@ class EventIngestionPostgresIntegrationTest {
         return event;
     }
 
+    // testing connection with security_events table
     @Test
     void flywayMigrationAndHibernateValidationSucceed() {
         assertThat(repository.count()).isZero();
@@ -117,6 +118,7 @@ class EventIngestionPostgresIntegrationTest {
         assertThat(repository.count()).isEqualTo(3);
     }
 
+    // two events with the same eventId
     @Test
     void duplicateEventIdReturns409() throws Exception {
         mockMvc.perform(post(INGEST_URL)
@@ -133,6 +135,7 @@ class EventIngestionPostgresIntegrationTest {
         assertThat(repository.count()).isEqualTo(1);
     }
 
+    // batch is atomic (the second event already in db)
     @Test
     void batchContainingDuplicateRollsBackCompletely() throws Exception {
         mockMvc.perform(post(INGEST_URL)
@@ -155,6 +158,7 @@ class EventIngestionPostgresIntegrationTest {
                 .containsExactly("evt-existing");
     }
 
+    // testing the calculated enrichment value indeed wrote in db
     @Test
     void attackTypeAndThreatScoreColumnsArePersistedWithExpectedValues() throws Exception {
         mockMvc.perform(post(INGEST_URL)
@@ -172,6 +176,7 @@ class EventIngestionPostgresIntegrationTest {
         assertThat(entity.getThreatScore()).isEqualTo(75);
     }
 
+    // the sixth event get the Repeat bonus (15 points)
     @Test
     void sixthEventForSameClientWithinTenMinuteWindowReceivesRepeatOffenderBonus() throws Exception {
         String clientIp = "203.0.113.50";

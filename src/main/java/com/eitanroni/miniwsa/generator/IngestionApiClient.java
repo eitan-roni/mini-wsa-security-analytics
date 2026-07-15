@@ -37,6 +37,7 @@ public class IngestionApiClient {
         this.objectMapper = objectMapper;
     }
 
+    // submit the batches by size
     public SubmissionResult submit(List<SecurityEventRequest> events, String apiUrl, int batchSize, PrintStream out) {
         int totalBatches = (events.size() + batchSize - 1) / batchSize;
         int submitted = 0;

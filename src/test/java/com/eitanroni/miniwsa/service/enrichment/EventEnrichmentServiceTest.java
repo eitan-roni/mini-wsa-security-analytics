@@ -56,6 +56,7 @@ class EventEnrichmentServiceTest {
         );
     }
 
+    // testing the enrichment score (using the repository)
     @Test
     void enrichesEveryEventWithClassificationAndScore() {
         SecurityEventRequest event = eventAt("evt-1", "/login", Action.DENY, Severity.CRITICAL, RuleCategory.INJECTION);
@@ -69,6 +70,7 @@ class EventEnrichmentServiceTest {
         assertThat(enriched.get(0).threatScore()).isEqualTo(75); // 40 + 20 + 15, not a repeat offender
     }
 
+    // verify the final enrichment output order is equal with the input
     @Test
     void preservesOriginalRequestOrder() {
         List<SecurityEventRequest> events = List.of(

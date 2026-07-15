@@ -125,16 +125,19 @@ public class SecurityEventGenerator {
         Instant windowEnd = clock.instant();
         Instant windowStart = windowEnd.minus(LOOKBACK_WINDOW);
 
+        // calculating the total events in each wave
         int targetWaveEvents = (int) ((long) config.count() * config.wavePercentage() / 100);
         int numWaves = targetWaveEvents / config.waveSize();
         int waveEventTotal = numWaves * config.waveSize();
         int backgroundEventTotal = config.count() - waveEventTotal;
 
+        // generating a list of random IPs
         List<String> clientIpPool = buildClientIpPool(random, CLIENT_IP_POOL_SIZE);
 
         List<SecurityEventRequest> events = new ArrayList<>(config.count());
         int nextId = 0;
 
+        // generating the attack waves
         for (int w = 0; w < numWaves; w++) {
             List<SecurityEventRequest> wave = generateWave(random, windowStart, windowEnd, clientIpPool, config, nextId);
             events.addAll(wave);

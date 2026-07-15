@@ -56,12 +56,14 @@ public class RepeatOffenderService {
         int size = events.size();
         Boolean[] resultsByOriginalIndex = new Boolean[size];
 
+        // sorted events indices by timestamp
         List<Integer> evaluationOrder = IntStream.range(0, size)
                 .boxed()
                 .sorted(Comparator.<Integer, Instant>comparing(i -> events.get(i).timestamp())
                         .thenComparing(i -> i))
                 .toList();
 
+        // map Ip to list of timestamp
         Map<String, List<Instant>> evaluatedBatchTimestampsByIp = new HashMap<>();
 
         for (int index : evaluationOrder) {
@@ -73,8 +75,11 @@ public class RepeatOffenderService {
             long persistedCount = repository.countByClientIpAndEventTimestampBetween(
                     clientIp, windowStart, eventTimestamp);
 
+            // the entire Instants of current IP of current batch
             List<Instant> evaluatedTimestamps =
                     evaluatedBatchTimestampsByIp.computeIfAbsent(clientIp, ip -> new ArrayList<>());
+
+             // only events counting from the calculated window
             long earlierBatchCount = evaluatedTimestamps.stream()
                     .filter(timestamp -> !timestamp.isBefore(windowStart))
                     .count();

@@ -49,6 +49,7 @@ class StatsControllerTest {
                 List.of(new TargetedPathStatsResponse("/api/v1/login", 234)));
     }
 
+    // happy test
     @Test
     void validRequestWithConfigIdReturns200() throws Exception {
         Instant from = Instant.parse("2026-07-01T00:00:00Z");
@@ -70,9 +71,11 @@ class StatsControllerTest {
                 .andExpect(jsonPath("$.topAttackers[0].clientIp").value("203.0.113.42"))
                 .andExpect(jsonPath("$.topTargetedPaths[0].path").value("/api/v1/login"));
 
+        // verify the Service get the correct params
         verify(statsService).getSummary(14227L, from, to);
     }
 
+    // configId is optional (not used)
     @Test
     void validRequestWithoutConfigIdReturns200WithNullConfigId() throws Exception {
         Instant from = Instant.parse("2026-07-01T00:00:00Z");
@@ -83,11 +86,12 @@ class StatsControllerTest {
                         .param("from", "2026-07-01T00:00:00Z")
                         .param("to", "2026-07-02T00:00:00Z"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.configId").doesNotExist());
+                .andExpect(jsonPath("$.configId").doesNotExist()); // not exists when is null
 
         verify(statsService).getSummary(isNull(), eq(from), eq(to));
     }
 
+    // from not supported value
     @Test
     void malformedFromReturns400() throws Exception {
         mockMvc.perform(get(SUMMARY_URL)
@@ -100,6 +104,7 @@ class StatsControllerTest {
         verifyNoInteractions(statsService);
     }
 
+    // to not supported value
     @Test
     void malformedToReturns400() throws Exception {
         mockMvc.perform(get(SUMMARY_URL)
@@ -112,6 +117,7 @@ class StatsControllerTest {
         verifyNoInteractions(statsService);
     }
 
+    // from is missing
     @Test
     void missingFromReturns400() throws Exception {
         mockMvc.perform(get(SUMMARY_URL)
@@ -123,6 +129,7 @@ class StatsControllerTest {
         verifyNoInteractions(statsService);
     }
 
+    // to is missing
     @Test
     void missingToReturns400() throws Exception {
         mockMvc.perform(get(SUMMARY_URL)
@@ -134,6 +141,7 @@ class StatsControllerTest {
         verifyNoInteractions(statsService);
     }
 
+    // from = to
     @Test
     void fromEqualToToReturns400() throws Exception {
         mockMvc.perform(get(SUMMARY_URL)
@@ -146,6 +154,7 @@ class StatsControllerTest {
         verifyNoInteractions(statsService);
     }
 
+    // from > to
     @Test
     void fromAfterToReturns400() throws Exception {
         mockMvc.perform(get(SUMMARY_URL)

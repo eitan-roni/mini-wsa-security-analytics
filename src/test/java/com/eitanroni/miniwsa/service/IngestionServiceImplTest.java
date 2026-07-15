@@ -94,6 +94,7 @@ class IngestionServiceImplTest {
         assertThat(response.acceptedCount()).isEqualTo(1);
     }
 
+    // the repository called once for the entire batch events
     @Test
     void batchIsPersistedInOneRepositoryOperation() {
         stubSuccessfulSave();
@@ -107,6 +108,7 @@ class IngestionServiceImplTest {
         assertThat(captor.getValue()).hasSize(3);
     }
 
+    // Verifies that every event in the batch receives the same receivedAt timestamp (using Clock.fixed)
     @Test
     void sameFixedReceivedAtIsUsedForEveryEventInBatch() {
         stubSuccessfulSave();
@@ -139,6 +141,8 @@ class IngestionServiceImplTest {
                 .containsExactly("evt-3", "evt-1", "evt-2");
     }
 
+    // Verifies that events are enriched with attackType and threatScore
+    // before they are sent to the repository for saving
     @Test
     void entitiesArePersistedWithAttackTypeAndThreatScoreAlreadyEnriched() {
         stubSuccessfulSave();
@@ -165,6 +169,7 @@ class IngestionServiceImplTest {
         assertThat(response.events()).hasSize(3);
     }
 
+    // unique constraint of eventId returns DuplicateEventException who converted to http 409 error
     @Test
     @SuppressWarnings("unchecked")
     void duplicateDatabaseViolationIsConvertedToDuplicateEventException() {
@@ -181,6 +186,7 @@ class IngestionServiceImplTest {
                 .hasCauseReference(dbException);
     }
 
+    // unexpected db error (e.g. long value)
     @Test
     @SuppressWarnings("unchecked")
     void unexpectedDatabaseErrorsAreNotIncorrectlyReportedAsDuplicates() {
