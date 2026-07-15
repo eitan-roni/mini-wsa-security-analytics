@@ -604,7 +604,7 @@ The test suite covers the system at several levels:
     * JSON serialization
     * HTTP batch submission and failure behavior
 
-At project completion, the full suite contained 167 passing tests with no failures, errors, or skipped tests.
+At project completion, the full suite contained 168 passing tests with no failures, errors, or skipped tests.
 
 ## Implementation Assumptions
 
@@ -616,7 +616,8 @@ At project completion, the full suite contained 167 passing tests with no failur
 ### Persistence and batch semantics
 
 * `eventId` is assumed unique and is enforced with a database unique constraint.
-* A duplicate `eventId` returns `409 Conflict` with error code `DUPLICATE_EVENT`. Idempotent no-op handling would be a possible alternative if required by the producer contract.* Batch persistence is atomic and all-or-nothing: a failure while saving any single event in a batch rolls back the entire batch, and no partial batches are ever stored.
+* A duplicate `eventId` returns `409 Conflict` with error code `DUPLICATE_EVENT`. Idempotent no-op handling would be a possible alternative if required by the producer contract.* 
+* Batch persistence is atomic and all-or-nothing: a failure while saving any single event in a batch rolls back the entire batch, and no partial batches are ever stored.
 * These are documented, easily reversible assumptions, not final design decisions.
 
 ## Challenging Parts
@@ -650,3 +651,16 @@ Batch ingestion is atomic and all-or-nothing:
 * the system never silently commits only part of a batch.
 
 This design avoids ambiguous partial success and silent data loss. In a production-scale asynchronous system, durable messaging, producer retries, idempotent processing, and a dead-letter flow would provide stronger delivery guarantees.
+
+
+## What I Would Improve with More Time
+
+Given more time, I would improve the system in the following areas:
+
+* Asynchronous ingestion — introduce Kafka or another durable message broker to decouple event producers from processing and provide stronger retry and delivery guarantees.
+* Scalable repeat-offender detection — replace the per-event database count query with keyed streaming state or a fast state store such as Redis.
+* Analytical scalability — separate transactional storage from analytical workloads and consider time-based partitioning or a dedicated analytical database.
+* Resilient generator submission — add retries, exponential backoff, checkpointing, and the ability to resume from the first failed batch.
+* Observability — add application metrics, structured logging, tracing, dashboards, and alerts for ingestion failures and processing latency.
+* API security — add authentication, authorization, rate limiting, request-size limits, and more complete security testing.
+* Performance testing — add load and concurrency tests for large batches, duplicate events, statistics queries, and simultaneous ingestion requests.
